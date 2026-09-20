@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import 'add_crop_screen.dart';
 
 /// Farmer dashboard.
 /// Shows a summary of the farmer's own listings, pulled from the backend.
@@ -23,6 +24,15 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   Future<void> _refresh() async {
     setState(() => _productsFuture = ApiService.fetchProducts());
     await _productsFuture;
+  }
+
+  Future<void> _openAddCrop() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const AddCropScreen()),
+    );
+    if (created == true) {
+      await _refresh();
+    }
   }
 
   String get _greeting {
@@ -76,14 +86,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
                             ...products.map(_buildListingTile),
                             const SizedBox(height: 20),
                             ElevatedButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Add Crop screen coming next!',
-                                        style: TextStyle(fontSize: 16)),
-                                  ),
-                                );
-                              },
+                              onPressed: _openAddCrop,
                               icon: const Icon(Icons.add),
                               label: const Text('Add New Crop'),
                             ),

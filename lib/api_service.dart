@@ -56,4 +56,33 @@ class ApiService {
     }
     throw Exception('Failed to load products (${response.statusCode})');
   }
+
+    /// POST /products
+  static Future<Product> createProduct({
+    required String name,
+    required String farmerName,
+    required double pricePerKg,
+    required int stockKg,
+    required String category,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$kBaseUrl/products'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'name': name,
+            'farmer_name': farmerName,
+            'price_per_kg': pricePerKg,
+            'stock_kg': stockKg,
+            'category': category,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      return Product.fromJson(jsonDecode(response.body));
+    }
+    throw Exception(
+        'Failed to add product (${response.statusCode}): ${response.body}');
+  }
 }
