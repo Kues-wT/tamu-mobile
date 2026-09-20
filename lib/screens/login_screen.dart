@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'buyer_home_screen.dart';
+import 'farmer_home_screen.dart';
 
 /// TAMU Login screen.
 /// UI only for now - no real authentication yet.
@@ -27,8 +28,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleLogin() {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: TamuColors.danger,
+          content: Text('Please enter your email and password',
+              style: TextStyle(fontSize: 16)),
+        ),
+      );
+      return;
+    }
+
+    final Widget destination =
+        _role == 'farmer' ? const FarmerHomeScreen() : const BuyerHomeScreen();
+
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const BuyerHomeScreen()),
+      MaterialPageRoute(builder: (_) => destination),
     );
   }
 
