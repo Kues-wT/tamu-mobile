@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import 'add_crop_screen.dart';
+import 'login_screen.dart';
 
-/// Farmer dashboard.
-/// Shows a summary of the farmer's own listings, pulled from the backend.
+/// Farmer dashboard - shows ONLY the logged-in farmer's own crops.
 class FarmerHomeScreen extends StatefulWidget {
   const FarmerHomeScreen({super.key});
 
@@ -18,21 +18,15 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _productsFuture = ApiService.fetchProducts();
+    // /products/mine - not /products. This is the ownership fix.
+    _productsFuture = ApiService.fetchMyProducts();
   }
 
   Future<void> _refresh() async {
-    setState(() => _productsFuture = ApiService.fetchProducts());
+    setState(() {
+      _productsFuture = ApiService.fetchMyProducts();
+    });
     await _productsFuture;
-  }
-
-  Future<void> _openAddCrop() async {
-    final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const AddCropScreen()),
-    );
-    if (created == true) {
-      await _refresh();
-    }
   }
 
   String get _greeting {
@@ -40,6 +34,81 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     if (h < 12) return 'Good morning';
     if (h < 18) return 'Good afternoon';
     return 'Good evening';
+  }
+
+  Future<void> _openAddCrop() async {
+    // The form returns the crop name on success, or null if cancelled.
+    final name = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const AddCropScreen()),
+    );
+    if (!mounted || name == null) return;
+    await _refresh();
+    if (!mounted) return;
+    _snack('$name added successfully!', TamuColors.primary);
+  }
+
+  Future<void> _openEditCrop(Product product) async {
+    final name = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => AddCropScreen(existing: product)),
+    );
+    if (!mounted || name == null) return;
+    await _refresh();
+    if (!mounted) return;
+    _snack('$name updated!', TamuColors.primary);
+  }
+
+  Future<void> _confirmDelete(Product product) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this crop?'),
+        content: Text(
+          '"${product.name}" will be removed from the marketplace. '
+          'This cannot be undone.',
+          style: const TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(fontSize: 16)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete',
+                style: TextStyle(fontSize: 16, color: TamuColors.danger)),
+          ),
+        ],
+      ),
+    );
+
+    if (yes != true) return;
+
+    try {
+      await ApiService.deleteProduct(product.id);
+      if (!mounted) return;
+      _snack('${product.name} deleted', TamuColors.primary);
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
+    }
+  }
+
+  void _logout() {
+    ApiService.logout();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  void _snack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: color,
+        content: Text(msg, style: const TextStyle(fontSize: 16)),
+      ),
+    );
   }
 
   @override
@@ -83,13 +152,17 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
                                 style: TextStyle(
                                     fontSize: 18, fontWeight: FontWeight.w600)),
                             const SizedBox(height: TamuSizes.gap),
-                            ...products.map(_buildListingTile),
+                            if (products.isEmpty)
+                              _buildEmptyState()
+                            else
+                              ...products.map(_buildListingTile),
                             const SizedBox(height: 20),
                             ElevatedButton.icon(
                               onPressed: _openAddCrop,
                               icon: const Icon(Icons.add),
                               label: const Text('Add New Crop'),
                             ),
+                            const SizedBox(height: 24),
                           ],
                         ),
                       ),
@@ -105,6 +178,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   }
 
   Widget _buildHeader() {
+    final name = ApiService.currentUser?.fullName ?? 'Farmer';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
@@ -118,7 +192,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$_greeting, Farmer 🌾',
+                Text('$_greeting, $name 🌾',
                     style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -131,7 +205,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
           ),
           IconButton(
             tooltip: 'Logout',
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _logout,
             icon: const Icon(Icons.logout, color: Colors.white),
           ),
         ],
@@ -141,8 +215,8 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
 
   Widget _buildSummaryGrid(List<Product> products, int lowCount) {
     final totalStock = products.fold<int>(0, (sum, p) => sum + p.stockKg);
-    final totalValue = products.fold<double>(
-        0, (sum, p) => sum + (p.pricePerKg * p.stockKg));
+    final totalValue =
+        products.fold<double>(0, (sum, p) => sum + (p.pricePerKg * p.stockKg));
 
     return GridView.count(
       crossAxisCount: 2,
@@ -154,10 +228,10 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
       children: [
         _summaryCard('Active Listings', '${products.length}',
             Icons.inventory_2_outlined, TamuColors.primary),
-        _summaryCard('Low Stock', '$lowCount',
-            Icons.warning_amber_outlined, TamuColors.warning),
-        _summaryCard('Total Stock', '$totalStock kg',
-            Icons.scale_outlined, TamuColors.info),
+        _summaryCard('Low Stock', '$lowCount', Icons.warning_amber_outlined,
+            TamuColors.warning),
+        _summaryCard('Total Stock', '$totalStock kg', Icons.scale_outlined,
+            TamuColors.info),
         _summaryCard('Stock Value', 'RM ${totalValue.toStringAsFixed(0)}',
             Icons.payments_outlined, TamuColors.primary),
       ],
@@ -182,8 +256,8 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
               style: TextStyle(
                   fontSize: 20, fontWeight: FontWeight.bold, color: color)),
           Text(label,
-              style: const TextStyle(
-                  fontSize: 13, color: TamuColors.textSecondary)),
+              style:
+                  const TextStyle(fontSize: 13, color: TamuColors.textSecondary)),
         ],
       ),
     );
@@ -208,19 +282,39 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Low Stock Alert',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
                 Text(
-                  lowStock
-                      .map((p) => '${p.name} (${p.stockKg} kg)')
-                      .join(', '),
+                  lowStock.map((p) => '${p.name} (${p.stockKg} kg)').join(', '),
                   style: const TextStyle(
                       fontSize: 14, color: TamuColors.textSecondary),
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      decoration: BoxDecoration(
+        color: TamuColors.surface,
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        border: Border.all(color: TamuColors.border),
+      ),
+      child: const Column(
+        children: [
+          Text('🌱', style: TextStyle(fontSize: 36)),
+          SizedBox(height: 8),
+          Text('No crops listed yet',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          SizedBox(height: 4),
+          Text('Tap "Add New Crop" to list your first produce',
+              style: TextStyle(fontSize: 14, color: TamuColors.textSecondary)),
         ],
       ),
     );
@@ -250,6 +344,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
                   'vegetable' => '🥬',
                   'fruit' => '🍌',
                   'rice' => '🌾',
+                  'herb' => '🌿',
                   _ => '🌱',
                 },
                 style: const TextStyle(fontSize: 24),
@@ -264,23 +359,31 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
                 Text(p.name,
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w600)),
-                Text('RM ${p.pricePerKg.toStringAsFixed(2)} /kg',
-                    style: const TextStyle(
-                        fontSize: 14, color: TamuColors.textSecondary)),
+                Text(
+                  'RM ${p.pricePerKg.toStringAsFixed(2)} /kg  ·  ${p.stockKg} kg',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: p.isOutOfStock
+                        ? TamuColors.danger
+                        : p.isLowStock
+                            ? TamuColors.warning
+                            : TamuColors.textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
-          Text(
-            '${p.stockKg} kg',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: p.isOutOfStock
-                  ? TamuColors.danger
-                  : p.isLowStock
-                      ? TamuColors.warning
-                      : TamuColors.primary,
-            ),
+          // Edit + Delete - only visible to the owner, because this whole
+          // screen only ever shows the logged-in farmer's own crops.
+          IconButton(
+            tooltip: 'Edit',
+            onPressed: () => _openEditCrop(p),
+            icon: const Icon(Icons.edit_outlined, color: TamuColors.info),
+          ),
+          IconButton(
+            tooltip: 'Delete',
+            onPressed: () => _confirmDelete(p),
+            icon: const Icon(Icons.delete_outline, color: TamuColors.danger),
           ),
         ],
       ),
@@ -302,7 +405,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: TamuColors.textSecondary)),
         const SizedBox(height: 16),
-        Text(msg,
+        Text(msg.replaceFirst('Exception: ', ''),
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, color: TamuColors.danger)),
         const SizedBox(height: 16),

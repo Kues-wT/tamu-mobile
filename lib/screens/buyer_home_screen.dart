@@ -147,7 +147,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _categories.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
                 final c = _categories[i];
                 final selected = _category == c;

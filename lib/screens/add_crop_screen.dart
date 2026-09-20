@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
 
-/// Add New Crop form.
-/// Sends a real POST /products request to the FastAPI backend.
+/// Add a new crop, or edit an existing one.
+/// Pass `existing` to switch the form into edit mode.
 class AddCropScreen extends StatefulWidget {
-  const AddCropScreen({super.key});
+  final Product? existing;
+  const AddCropScreen({super.key, this.existing});
 
   @override
   State<AddCropScreen> createState() => _AddCropScreenState();
@@ -14,13 +15,14 @@ class AddCropScreen extends StatefulWidget {
 class _AddCropScreenState extends State<AddCropScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final _nameController = TextEditingController();
-  final _farmerController = TextEditingController();
-  final _priceController = TextEditingController();
-  final _stockController = TextEditingController();
+  late final TextEditingController _nameController;
+  late final TextEditingController _priceController;
+  late final TextEditingController _stockController;
 
-  String _category = 'vegetable';
+  late String _category;
   bool _saving = false;
+
+  bool get _isEditing => widget.existing != null;
 
   static const _categories = {
     'vegetable': '🥬 Vegetable',
@@ -30,47 +32,70 @@ class _AddCropScreenState extends State<AddCropScreen> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _nameController = TextEditingController(text: e?.name ?? '');
+    _priceController =
+        TextEditingController(text: e?.pricePerKg.toStringAsFixed(2) ?? '');
+    _stockController = TextEditingController(text: e?.stockKg.toString() ?? '');
+    _category = e?.category ?? 'vegetable';
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
-    _farmerController.dispose();
     _priceController.dispose();
     _stockController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    // Runs every validator in the form.
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _saving = true);
 
+    final name = _nameController.text.trim();
+    final price = double.parse(_priceController.text.trim());
+    final stock = int.parse(_stockController.text.trim());
+
+    // These prints show up in the Flutter terminal / DevTools console
+    // so we can see exactly how far the save gets.
+    debugPrint('SAVE: starting request for "$name"');
+
     try {
-      final created = await ApiService.createProduct(
-        name: _nameController.text.trim(),
-        farmerName: _farmerController.text.trim(),
-        pricePerKg: double.parse(_priceController.text.trim()),
-        stockKg: int.parse(_stockController.text.trim()),
-        category: _category,
-      );
+      if (_isEditing) {
+        await ApiService.updateProduct(
+          id: widget.existing!.id,
+          name: name,
+          pricePerKg: price,
+          stockKg: stock,
+          category: _category,
+        );
+      } else {
+        await ApiService.createProduct(
+          name: name,
+          pricePerKg: price,
+          stockKg: stock,
+          category: _category,
+        );
+      }
+
+      debugPrint('SAVE: request finished OK, popping screen');
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: TamuColors.primary,
-          content: Text('${created.name} added successfully!',
-              style: const TextStyle(fontSize: 16)),
-        ),
-      );
-      // true = tell the previous screen to refresh its list.
-      Navigator.of(context).pop(true);
+      // Hand the result back. The dashboard shows the success message,
+      // so nothing is attached to this screen while it is closing.
+      Navigator.of(context).pop(name);
     } catch (e) {
+      debugPrint('SAVE: FAILED -> $e');
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: TamuColors.danger,
-          content: Text('Could not save: $e',
-              style: const TextStyle(fontSize: 14)),
+          content: Text(e.toString().replaceFirst('Exception: ', ''),
+              style: const TextStyle(fontSize: 14, color: Colors.white)),
         ),
       );
     }
@@ -80,9 +105,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: TamuColors.background,
-      appBar: AppBar(
-        title: const Text('Add New Crop'),
-      ),
+      appBar: AppBar(title: Text(_isEditing ? 'Edit Crop' : 'Add New Crop')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -106,21 +129,6 @@ class _AddCropScreenState extends State<AddCropScreen> {
                     ),
                     validator: (v) => (v == null || v.trim().isEmpty)
                         ? 'Please enter the crop name'
-                        : null,
-                  ),
-                  const SizedBox(height: TamuSizes.gap),
-
-                  _label('Farmer Name'),
-                  TextFormField(
-                    controller: _farmerController,
-                    style: const TextStyle(fontSize: 16),
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. Puan Siti',
-                      prefixIcon: Icon(Icons.person_outline),
-                    ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Please enter the farmer name'
                         : null,
                   ),
                   const SizedBox(height: TamuSizes.gap),
@@ -198,7 +206,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: Colors.white),
                           )
-                        : const Text('Save Crop'),
+                        : Text(_isEditing ? 'Save Changes' : 'Save Crop'),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
@@ -226,15 +234,13 @@ class _AddCropScreenState extends State<AddCropScreen> {
                 color: TamuColors.textPrimary)),
       );
 
-  /// Photo / AR model upload is future work - placeholder only for now.
   Widget _buildPhotoPlaceholder() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 28),
       decoration: BoxDecoration(
         color: TamuColors.lightGreen,
         borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(
-            color: TamuColors.secondary, width: 2, style: BorderStyle.solid),
+        border: Border.all(color: TamuColors.secondary, width: 2),
       ),
       child: const Column(
         children: [
