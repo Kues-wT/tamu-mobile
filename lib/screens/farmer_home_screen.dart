@@ -3,6 +3,7 @@ import '../theme.dart';
 import '../api_service.dart';
 import 'add_crop_screen.dart';
 import 'orders_screen.dart';
+import 'sales_report_screen.dart';
 import 'login_screen.dart';
 
 /// Farmer dashboard - shows ONLY the logged-in farmer's own crops.
@@ -214,6 +215,13 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
                     style: TextStyle(fontSize: 13, color: Color(0xFFA5D6A7))),
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Sales Report',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SalesReportScreen()),
+            ),
+            icon: const Icon(Icons.bar_chart, color: Colors.white),
           ),
           IconButton(
             tooltip: 'Incoming Orders',

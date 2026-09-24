@@ -110,6 +110,91 @@ class Order {
       );
 }
 
+class MonthlySales {
+  final String label;
+  final double revenue;
+  final int orders;
+
+  MonthlySales({
+    required this.label,
+    required this.revenue,
+    required this.orders,
+  });
+
+  factory MonthlySales.fromJson(Map<String, dynamic> json) => MonthlySales(
+        label: json['label'] as String,
+        revenue: (json['revenue'] as num).toDouble(),
+        orders: json['orders'] as int,
+      );
+}
+
+class TopCrop {
+  final String productName;
+  final int quantityKg;
+  final double revenue;
+  final int orders;
+
+  TopCrop({
+    required this.productName,
+    required this.quantityKg,
+    required this.revenue,
+    required this.orders,
+  });
+
+  factory TopCrop.fromJson(Map<String, dynamic> json) => TopCrop(
+        productName: json['product_name'] as String,
+        quantityKg: json['quantity_kg'] as int,
+        revenue: (json['revenue'] as num).toDouble(),
+        orders: json['orders'] as int,
+      );
+}
+
+class SalesReport {
+  final String farmerName;
+  final double totalRevenue;
+  final int totalOrders;
+  final double averageOrderValue;
+  final int totalKgSold;
+  final double pendingRevenue;
+  final int pendingOrders;
+  final double thisMonthRevenue;
+  final int thisMonthOrders;
+  final List<MonthlySales> monthly;
+  final List<TopCrop> topCrops;
+
+  SalesReport({
+    required this.farmerName,
+    required this.totalRevenue,
+    required this.totalOrders,
+    required this.averageOrderValue,
+    required this.totalKgSold,
+    required this.pendingRevenue,
+    required this.pendingOrders,
+    required this.thisMonthRevenue,
+    required this.thisMonthOrders,
+    required this.monthly,
+    required this.topCrops,
+  });
+
+  factory SalesReport.fromJson(Map<String, dynamic> json) => SalesReport(
+        farmerName: json['farmer_name'] as String,
+        totalRevenue: (json['total_revenue'] as num).toDouble(),
+        totalOrders: json['total_orders'] as int,
+        averageOrderValue: (json['average_order_value'] as num).toDouble(),
+        totalKgSold: json['total_kg_sold'] as int,
+        pendingRevenue: (json['pending_revenue'] as num).toDouble(),
+        pendingOrders: json['pending_orders'] as int,
+        thisMonthRevenue: (json['this_month_revenue'] as num).toDouble(),
+        thisMonthOrders: json['this_month_orders'] as int,
+        monthly: (json['monthly'] as List)
+            .map((m) => MonthlySales.fromJson(m))
+            .toList(),
+        topCrops: (json['top_crops'] as List)
+            .map((c) => TopCrop.fromJson(c))
+            .toList(),
+      );
+}
+
 // --------------------------------------------------------------- service
 
 class ApiService {
@@ -337,6 +422,21 @@ class ApiService {
 
     if (response.statusCode == 200) {
       return Order.fromJson(jsonDecode(response.body));
+    }
+    throw Exception(_errorMessage(response));
+  }
+
+  // --------------------------------------------------------- reports
+
+  /// GET /reports/sales - FR7, farmer only.
+  static Future<SalesReport> fetchSalesReport({int months = 6}) async {
+    final response = await http
+        .get(Uri.parse('$kBaseUrl/reports/sales?months=$months'),
+            headers: _headers)
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      return SalesReport.fromJson(jsonDecode(response.body));
     }
     throw Exception(_errorMessage(response));
   }
