@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import 'product_detail_screen.dart';
+import 'orders_screen.dart';
+import 'login_screen.dart';
 
 /// Buyer marketplace home.
 /// Loads REAL products from the FastAPI backend.
@@ -29,6 +32,44 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
       _productsFuture = ApiService.fetchProducts();
     });
     await _productsFuture;
+  }
+
+  /// Opens the detail page. If an order was placed it returns the crop
+  /// name, so we reload (stock may have changed) and confirm to the user.
+  Future<void> _openProduct(Product p) async {
+    final orderedName = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => ProductDetailScreen(product: p)),
+    );
+    if (!mounted || orderedName == null) return;
+    await _refresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: TamuColors.primary,
+        content: Text('Order placed for $orderedName!',
+            style: const TextStyle(fontSize: 16, color: Colors.white)),
+        action: SnackBarAction(
+          label: 'VIEW',
+          textColor: Colors.white,
+          onPressed: _openOrders,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openOrders() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const OrdersScreen()),
+    );
+    if (mounted) await _refresh();
+  }
+
+  void _logout() {
+    ApiService.logout();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
   }
 
   List<Product> _filter(List<Product> all) {
@@ -80,8 +121,10 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                             childAspectRatio: 0.78,
                           ),
                           itemCount: products.length,
-                          itemBuilder: (context, i) =>
-                              _ProductCard(product: products[i]),
+                          itemBuilder: (context, i) => _ProductCard(
+                            product: products[i],
+                            onTap: () => _openProduct(products[i]),
+                          ),
                         );
                       },
                     ),
@@ -125,9 +168,15 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                 ),
               ),
               IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.notifications_outlined,
+                tooltip: 'My Orders',
+                onPressed: _openOrders,
+                icon: const Icon(Icons.receipt_long_outlined,
                     color: Colors.white),
+              ),
+              IconButton(
+                tooltip: 'Logout',
+                onPressed: _logout,
+                icon: const Icon(Icons.logout, color: Colors.white),
               ),
             ],
           ),
@@ -219,11 +268,15 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
 
 class _ProductCard extends StatelessWidget {
   final Product product;
-  const _ProductCard({required this.product});
+  final VoidCallback onTap;
+  const _ProductCard({required this.product, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+      child: Container(
       decoration: BoxDecoration(
         color: TamuColors.surface,
         borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
@@ -286,6 +339,7 @@ class _ProductCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

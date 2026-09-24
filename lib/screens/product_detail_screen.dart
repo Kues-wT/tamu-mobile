@@ -1,0 +1,367 @@
+import 'package:flutter/material.dart';
+import '../theme.dart';
+import '../api_service.dart';
+
+/// Product detail + place order.
+/// Returns the crop name to the previous screen if an order was placed.
+class ProductDetailScreen extends StatefulWidget {
+  final Product product;
+  const ProductDetailScreen({super.key, required this.product});
+
+  @override
+  State<ProductDetailScreen> createState() => _ProductDetailScreenState();
+}
+
+class _ProductDetailScreenState extends State<ProductDetailScreen> {
+  int _quantity = 1;
+  bool _ordering = false;
+
+  Product get p => widget.product;
+
+  double get _total => p.pricePerKg * _quantity;
+
+  void _changeQty(int delta) {
+    final next = _quantity + delta;
+    if (next < 1 || next > p.stockKg) return;
+    setState(() {
+      _quantity = next;
+    });
+  }
+
+  Future<void> _placeOrder() async {
+    setState(() {
+      _ordering = true;
+    });
+
+    try {
+      await ApiService.createOrder(
+        productId: p.id,
+        quantityKg: _quantity,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(p.name);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _ordering = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: TamuColors.danger,
+          content: Text(e.toString().replaceFirst('Exception: ', ''),
+              style: const TextStyle(fontSize: 16, color: Colors.white)),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isBuyer = ApiService.currentUser?.isBuyer ?? false;
+
+    return Scaffold(
+      backgroundColor: TamuColors.background,
+      appBar: AppBar(title: Text(p.name)),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: ListView(
+              padding: const EdgeInsets.all(TamuSizes.pagePadding),
+              children: [
+                _buildImageArea(),
+                const SizedBox(height: 16),
+                _buildInfoCard(),
+                const SizedBox(height: 16),
+                if (p.isOutOfStock)
+                  _buildOutOfStock()
+                else if (!isBuyer)
+                  _buildBuyerOnlyNote()
+                else ...[
+                  _buildQuantityPicker(),
+                  const SizedBox(height: 16),
+                  _buildTotalCard(),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: _ordering ? null : _placeOrder,
+                    icon: _ordering
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.shopping_cart_checkout),
+                    label: Text(_ordering ? 'Placing order...' : 'Place Order'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'The farmer will review and confirm your order.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 13, color: TamuColors.textSecondary),
+                  ),
+                ],
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageArea() {
+    return Container(
+      height: 160,
+      decoration: BoxDecoration(
+        color: TamuColors.lightGreen,
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+      ),
+      child: Stack(
+        children: [
+          Center(
+            child: Text(
+              switch (p.category) {
+                'vegetable' => '🥬',
+                'fruit' => '🍌',
+                'rice' => '🌾',
+                'herb' => '🌿',
+                _ => '🌱',
+              },
+              style: const TextStyle(fontSize: 72),
+            ),
+          ),
+          // AR proof-of-concept placeholder.
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text('👁️  View in AR (soon)',
+                  style: TextStyle(fontSize: 12, color: Colors.white)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      decoration: BoxDecoration(
+        color: TamuColors.surface,
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        border: Border.all(color: TamuColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(p.name,
+              style: const TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.person_outline,
+                  size: 18, color: TamuColors.textSecondary),
+              const SizedBox(width: 4),
+              Text(p.farmerName,
+                  style: const TextStyle(
+                      fontSize: 16, color: TamuColors.textSecondary)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Row(
+            children: [
+              Icon(Icons.location_on_outlined,
+                  size: 18, color: TamuColors.textSecondary),
+              SizedBox(width: 4),
+              Text('Tamparuli, Sabah',
+                  style: TextStyle(
+                      fontSize: 14, color: TamuColors.textSecondary)),
+            ],
+          ),
+          const Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('RM ${p.pricePerKg.toStringAsFixed(2)} /kg',
+                  style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: TamuColors.primary)),
+              _stockBadge(),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stockBadge() {
+    late final Color bg;
+    late final Color fg;
+    late final String text;
+
+    if (p.isOutOfStock) {
+      bg = const Color(0xFFFFEBEE);
+      fg = TamuColors.danger;
+      text = 'Out of stock';
+    } else if (p.isLowStock) {
+      bg = const Color(0xFFFFF8E1);
+      fg = TamuColors.warning;
+      text = 'Only ${p.stockKg} kg left';
+    } else {
+      bg = TamuColors.lightGreen;
+      fg = TamuColors.primary;
+      text = '${p.stockKg} kg available';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Text(text,
+          style:
+              TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: fg)),
+    );
+  }
+
+  Widget _buildQuantityPicker() {
+    return Container(
+      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      decoration: BoxDecoration(
+        color: TamuColors.surface,
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        border: Border.all(color: TamuColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('How many kilograms?',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _qtyButton(Icons.remove, () => _changeQty(-1), _quantity > 1),
+              Container(
+                width: 90,
+                alignment: Alignment.center,
+                child: Text('$_quantity kg',
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.bold)),
+              ),
+              _qtyButton(
+                  Icons.add, () => _changeQty(1), _quantity < p.stockKg),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text('Maximum ${p.stockKg} kg',
+                style: const TextStyle(
+                    fontSize: 13, color: TamuColors.textSecondary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _qtyButton(IconData icon, VoidCallback onTap, bool enabled) {
+    return SizedBox(
+      width: 56,
+      height: 56, // large tap target for older users
+      child: OutlinedButton(
+        onPressed: enabled ? onTap : null,
+        style: OutlinedButton.styleFrom(
+          shape: const CircleBorder(),
+          padding: EdgeInsets.zero,
+          side: BorderSide(
+              color: enabled ? TamuColors.primary : TamuColors.border),
+        ),
+        child: Icon(icon,
+            size: 26,
+            color: enabled ? TamuColors.primary : TamuColors.border),
+      ),
+    );
+  }
+
+  Widget _buildTotalCard() {
+    return Container(
+      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      decoration: BoxDecoration(
+        color: TamuColors.lightGreen,
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        border: Border.all(color: TamuColors.secondary),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Total',
+                  style: TextStyle(fontSize: 14, color: TamuColors.textSecondary)),
+              Text('$_quantity kg × RM ${p.pricePerKg.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 14)),
+            ],
+          ),
+          Text('RM ${_total.toStringAsFixed(2)}',
+              style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: TamuColors.primary)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutOfStock() {
+    return Container(
+      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        border: Border.all(color: TamuColors.danger),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.remove_shopping_cart_outlined, color: TamuColors.danger),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text('This crop is currently out of stock.',
+                style: TextStyle(fontSize: 16, color: TamuColors.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuyerOnlyNote() {
+    return Container(
+      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE3F2FD),
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        border: Border.all(color: TamuColors.info),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline, color: TamuColors.info),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text('Only buyer accounts can place orders.',
+                style: TextStyle(fontSize: 16, color: TamuColors.info)),
+          ),
+        ],
+      ),
+    );
+  }
+}

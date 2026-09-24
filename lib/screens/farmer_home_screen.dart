@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import 'add_crop_screen.dart';
+import 'orders_screen.dart';
 import 'login_screen.dart';
 
 /// Farmer dashboard - shows ONLY the logged-in farmer's own crops.
@@ -23,6 +24,8 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   }
 
   Future<void> _refresh() async {
+    // Braces, not '=>'. An arrow function returns its value, and
+    // setState() must never be given a Future.
     setState(() {
       _productsFuture = ApiService.fetchMyProducts();
     });
@@ -92,6 +95,15 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
       if (!mounted) return;
       _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
     }
+  }
+
+  /// Opens the incoming orders inbox. Accepting an order changes stock,
+  /// so we refresh the dashboard when we come back.
+  Future<void> _openOrders() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const OrdersScreen()),
+    );
+    if (mounted) await _refresh();
   }
 
   void _logout() {
@@ -202,6 +214,11 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
                     style: TextStyle(fontSize: 13, color: Color(0xFFA5D6A7))),
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Incoming Orders',
+            onPressed: _openOrders,
+            icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
           ),
           IconButton(
             tooltip: 'Logout',
