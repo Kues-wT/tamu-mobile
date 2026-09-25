@@ -3,7 +3,9 @@ import '../theme.dart';
 import '../api_service.dart';
 import 'product_detail_screen.dart';
 import 'orders_screen.dart';
-import 'login_screen.dart';
+import 'nearby_farms_screen.dart';
+import 'profile_screen.dart';
+
 
 /// Buyer marketplace home.
 /// Loads REAL products from the FastAPI backend.
@@ -18,20 +20,41 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   late Future<List<Product>> _productsFuture;
   String _category = 'All';
   String _search = '';
+  bool _nearbyOnly = false;      // FR3: filter by proximity
+  double _radiusKm = 10;
 
   static const _categories = ['All', 'vegetable', 'fruit', 'rice'];
 
   @override
   void initState() {
     super.initState();
-    _productsFuture = ApiService.fetchProducts();
+    _productsFuture = _load();
+  }
+
+  /// Always asks the backend for distances, measured from the buyer's
+  /// saved location (or Tamparuli town if they have not set one).
+  Future<List<Product>> _load() {
+    final user = ApiService.currentUser;
+    return ApiService.fetchProducts(
+      lat: user?.latitude ?? kTamparuliLat,
+      lng: user?.longitude ?? kTamparuliLng,
+      radiusKm: _nearbyOnly ? _radiusKm : null,
+      sort: 'distance',
+    );
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _productsFuture = ApiService.fetchProducts();
+      _productsFuture = _load();
     });
     await _productsFuture;
+  }
+
+  Future<void> _openNearbyFarms() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NearbyFarmsScreen()),
+    );
+    if (mounted) await _refresh();
   }
 
   /// Opens the detail page. If an order was placed it returns the crop
@@ -46,8 +69,10 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: TamuColors.primary,
-        content: Text('Order placed for $orderedName!',
-            style: const TextStyle(fontSize: 16, color: Colors.white)),
+        content: Text(
+          'Order placed for $orderedName!',
+          style: const TextStyle(fontSize: 16, color: Colors.white),
+        ),
         action: SnackBarAction(
           label: 'VIEW',
           textColor: Colors.white,
@@ -64,19 +89,19 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     if (mounted) await _refresh();
   }
 
-  void _logout() {
-    ApiService.logout();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
+  Future<void> _openProfile() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
     );
+    if (mounted) setState(() {});
   }
+
 
   List<Product> _filter(List<Product> all) {
     return all.where((p) {
       final matchCat = _category == 'All' || p.category == _category;
-      final matchSearch =
-          _search.isEmpty || p.name.toLowerCase().contains(_search.toLowerCase());
+      final matchSearch = _search.isEmpty ||
+          p.name.toLowerCase().contains(_search.toLowerCase());
       return matchCat && matchSearch;
     }).toList();
   }
@@ -98,17 +123,36 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                     child: FutureBuilder<List<Product>>(
                       future: _productsFuture,
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
                         }
                         if (snapshot.hasError) {
                           return _buildError(snapshot.error.toString());
                         }
                         final products = _filter(snapshot.data ?? []);
                         if (products.isEmpty) {
-                          return const Center(
-                            child: Text('No produce found.',
-                                style: TextStyle(fontSize: 16)),
+                          return ListView(
+                            children: const [
+                              SizedBox(height: 80),
+                              Center(
+                                child: Text(
+                                  'No produce found.',
+                                  style: TextStyle(fontSize: 16),
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Center(
+                                child: Text(
+                                  'Try widening the distance filter.',
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      color: TamuColors.textSecondary),
+                                ),
+                              ),
+                            ],
                           );
                         }
                         return GridView.builder(
@@ -121,10 +165,13 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                             childAspectRatio: 0.78,
                           ),
                           itemCount: products.length,
-                          itemBuilder: (context, i) => _ProductCard(
-                            product: products[i],
-                            onTap: () => _openProduct(products[i]),
-                          ),
+                          itemBuilder: (context, i) {
+                            final product = products[i];
+                            return _ProductCard(
+                              product: product,
+                              onTap: () => _openProduct(product),
+                            );
+                          },
                         );
                       },
                     ),
@@ -153,36 +200,53 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
             children: [
               const Text('🌿', style: TextStyle(fontSize: 26)),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('TAMU',
-                        style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white)),
-                    Text('📍 Tamparuli, Sabah',
-                        style: TextStyle(fontSize: 13, color: Color(0xFFA5D6A7))),
+                    const Text(
+                      'TAMU',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      '📍 Tamparuli  ·  ${ApiService.currentUser?.fullName ?? ""}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFFA5D6A7),
+                      ),
+                    ),
                   ],
                 ),
               ),
               IconButton(
-                tooltip: 'My Orders',
-                onPressed: _openOrders,
-                icon: const Icon(Icons.receipt_long_outlined,
-                    color: Colors.white),
+                tooltip: 'Nearby Farms',
+                onPressed: _openNearbyFarms,
+                icon: const Icon(Icons.map_outlined, color: Colors.white),
               ),
               IconButton(
-                tooltip: 'Logout',
-                onPressed: _logout,
-                icon: const Icon(Icons.logout, color: Colors.white),
+                tooltip: 'My Orders',
+                onPressed: _openOrders,
+                icon: const Icon(
+                  Icons.receipt_long_outlined,
+                  color: Colors.white,
+                ),
+              ),
+              IconButton(
+                tooltip: 'My Profile',
+                onPressed: _openProfile,
+                icon: const Icon(Icons.person_outline, color: Colors.white),
               ),
             ],
           ),
           const SizedBox(height: 8),
           TextField(
-            onChanged: (v) => setState(() => _search = v),
+            onChanged: (v) => setState(() {
+              _search = v;
+            }),
             style: const TextStyle(fontSize: 16),
             decoration: const InputDecoration(
               hintText: 'Search fresh produce...',
@@ -190,9 +254,60 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
               isDense: true,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.near_me_outlined,
+                  size: 17, color: Colors.white.withValues(alpha: 0.9)),
+              const SizedBox(width: 6),
+              Text(
+                _nearbyOnly
+                    ? 'Within ${_radiusKm.toStringAsFixed(0)} km'
+                    : 'All distances',
+                style: const TextStyle(fontSize: 13, color: Colors.white),
+              ),
+              if (_nearbyOnly) ...[
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: Colors.white,
+                      inactiveTrackColor: Colors.white30,
+                      thumbColor: Colors.white,
+                      overlayColor: Colors.white24,
+                      trackHeight: 3,
+                    ),
+                    child: Slider(
+                      value: _radiusKm,
+                      min: 1,
+                      max: 30,
+                      divisions: 29,
+                      onChanged: (v) => setState(() {
+                        _radiusKm = v;
+                      }),
+                      onChangeEnd: (_) => _refresh(),
+                    ),
+                  ),
+                ),
+              ] else
+                const Spacer(),
+              Switch(
+                value: _nearbyOnly,
+                activeThumbColor: Colors.white,
+                activeTrackColor: const Color(0xFF81C784),
+                inactiveThumbColor: Colors.white70,
+                inactiveTrackColor: Colors.white24,
+                onChanged: (v) {
+                  setState(() {
+                    _nearbyOnly = v;
+                  });
+                  _refresh();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           SizedBox(
-            height: 36,
+            height: 38,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _categories.length,
@@ -205,14 +320,23 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                     c == 'All' ? 'All' : '${_emoji(c)} ${_label(c)}',
                     style: TextStyle(
                       fontSize: 14,
-                      color: selected ? TamuColors.primary : Colors.white,
+                      fontWeight: FontWeight.w600,
+                      color: selected
+                          ? TamuColors.primary
+                          : TamuColors.textPrimary,
                     ),
                   ),
                   selected: selected,
-                  onSelected: (_) => setState(() => _category = c),
-                  backgroundColor: Colors.white.withValues(alpha: 0.15),
+                  showCheckmark: false,
+                  backgroundColor: Colors.white,
                   selectedColor: Colors.white,
-                  shape: const StadiumBorder(side: BorderSide(color: Colors.white38)),
+                  side: BorderSide(
+                    color: selected ? TamuColors.primary : TamuColors.border,
+                    width: selected ? 2 : 1,
+                  ),
+                  onSelected: (_) => setState(() {
+                    _category = c;
+                  }),
                 );
               },
             ),
@@ -256,9 +380,11 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
           style: TextStyle(fontSize: 14, color: TamuColors.textSecondary),
         ),
         const SizedBox(height: 16),
-        Text(msg,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: TamuColors.danger)),
+        Text(
+          msg.replaceFirst('Exception: ', ''),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12, color: TamuColors.danger),
+        ),
         const SizedBox(height: 16),
         ElevatedButton(onPressed: _refresh, child: const Text('Try Again')),
       ],
@@ -269,6 +395,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
 class _ProductCard extends StatelessWidget {
   final Product product;
   final VoidCallback onTap;
+
   const _ProductCard({required this.product, required this.onTap});
 
   @override
@@ -277,69 +404,92 @@ class _ProductCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
       child: Container(
-      decoration: BoxDecoration(
-        color: TamuColors.surface,
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(color: TamuColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Placeholder image area (real photos come later).
-          Container(
-            height: 90,
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              color: TamuColors.lightGreen,
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(TamuSizes.cardRadius)),
-            ),
-            child: Center(
-              child: Text(
-                switch (product.category) {
-                  'vegetable' => '🥬',
-                  'fruit' => '🍌',
-                  'rice' => '🌾',
-                  _ => '🌱',
-                },
-                style: const TextStyle(fontSize: 40),
+        decoration: BoxDecoration(
+          color: TamuColors.surface,
+          borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+          border: Border.all(color: TamuColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 90,
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: TamuColors.lightGreen,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(TamuSizes.cardRadius),
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  switch (product.category) {
+                    'vegetable' => '🥬',
+                    'fruit' => '🍌',
+                    'rice' => '🌾',
+                    'herb' => '🌿',
+                    _ => '🌱',
+                  },
+                  style: const TextStyle(fontSize: 40),
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      product.farmName ?? product.farmerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: TamuColors.textSecondary,
+                      ),
+                    ),
+                    if (product.distanceKm != null)
+                      Row(
+                        children: [
+                          const Icon(Icons.near_me,
+                              size: 12, color: TamuColors.info),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${product.distanceKm!.toStringAsFixed(1)} km away',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: TamuColors.info),
+                          ),
+                        ],
+                      ),
+                    const Spacer(),
+                    Text(
+                      'RM ${product.pricePerKg.toStringAsFixed(2)} /kg',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: TamuColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _stockBadge(),
+                  ],
                 ),
-                Text(
-                  product.farmerName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 13, color: TamuColors.textSecondary),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'RM ${product.pricePerKg.toStringAsFixed(2)} /kg',
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: TamuColors.primary),
-                ),
-                const SizedBox(height: 4),
-                _stockBadge(),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -369,8 +519,12 @@ class _ProductCard extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(text,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: fg)),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: fg),
+      ),
     );
   }
 }

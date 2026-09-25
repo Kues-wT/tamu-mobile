@@ -4,7 +4,8 @@ import '../api_service.dart';
 import 'add_crop_screen.dart';
 import 'orders_screen.dart';
 import 'sales_report_screen.dart';
-import 'login_screen.dart';
+import 'profile_screen.dart';
+
 
 /// Farmer dashboard - shows ONLY the logged-in farmer's own crops.
 class FarmerHomeScreen extends StatefulWidget {
@@ -107,13 +108,15 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     if (mounted) await _refresh();
   }
 
-  void _logout() {
-    ApiService.logout();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
+  /// Opens the profile. If the name changed, listings show the new
+  /// farmer name, so refresh when we come back.
+  Future<void> _openProfile() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
     );
+    if (mounted && changed == true) await _refresh();
   }
+
 
   void _snack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -229,9 +232,9 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
             icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
           ),
           IconButton(
-            tooltip: 'Logout',
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'My Profile',
+            onPressed: _openProfile,
+            icon: const Icon(Icons.person_outline, color: Colors.white),
           ),
         ],
       ),

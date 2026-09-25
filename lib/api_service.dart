@@ -17,6 +17,10 @@ class AppUser {
   final String fullName;
   final String role;
   final String? phone;
+  final String? farmName;
+  final String? address;
+  final double? latitude;
+  final double? longitude;
 
   AppUser({
     required this.id,
@@ -24,6 +28,10 @@ class AppUser {
     required this.fullName,
     required this.role,
     this.phone,
+    this.farmName,
+    this.address,
+    this.latitude,
+    this.longitude,
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
@@ -32,10 +40,40 @@ class AppUser {
         fullName: json['full_name'] as String,
         role: json['role'] as String,
         phone: json['phone'] as String?,
+        farmName: json['farm_name'] as String?,
+        address: json['address'] as String?,
+        latitude: (json['latitude'] as num?)?.toDouble(),
+        longitude: (json['longitude'] as num?)?.toDouble(),
       );
+
+  bool get hasLocation => latitude != null && longitude != null;
 
   bool get isFarmer => role == 'farmer';
   bool get isBuyer => role == 'buyer';
+}
+
+class UserStats {
+  final int listings;
+  final int ordersPlaced;
+  final int ordersReceived;
+  final int completedOrders;
+  final DateTime memberSince;
+
+  UserStats({
+    required this.listings,
+    required this.ordersPlaced,
+    required this.ordersReceived,
+    required this.completedOrders,
+    required this.memberSince,
+  });
+
+  factory UserStats.fromJson(Map<String, dynamic> json) => UserStats(
+        listings: json['listings'] as int,
+        ordersPlaced: json['orders_placed'] as int,
+        ordersReceived: json['orders_received'] as int,
+        completedOrders: json['completed_orders'] as int,
+        memberSince: DateTime.parse(json['member_since'] as String),
+      );
 }
 
 class Product {
@@ -46,6 +84,10 @@ class Product {
   final int stockKg;
   final String category;
   final int ownerId;
+  final String? farmName;
+  final double? latitude;
+  final double? longitude;
+  final double? distanceKm;
 
   Product({
     required this.id,
@@ -55,6 +97,10 @@ class Product {
     required this.stockKg,
     required this.category,
     required this.ownerId,
+    this.farmName,
+    this.latitude,
+    this.longitude,
+    this.distanceKm,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -65,6 +111,10 @@ class Product {
         stockKg: json['stock_kg'] as int,
         category: json['category'] as String,
         ownerId: json['owner_id'] as int,
+        farmName: json['farm_name'] as String?,
+        latitude: (json['latitude'] as num?)?.toDouble(),
+        longitude: (json['longitude'] as num?)?.toDouble(),
+        distanceKm: (json['distance_km'] as num?)?.toDouble(),
       );
 
   bool get isLowStock => stockKg > 0 && stockKg < 15;
@@ -195,6 +245,47 @@ class SalesReport {
       );
 }
 
+class NearbyFarm {
+  final int ownerId;
+  final String farmerName;
+  final String? farmName;
+  final String? address;
+  final double latitude;
+  final double longitude;
+  final double? distanceKm;
+  final int listings;
+  final String? phone;
+
+  NearbyFarm({
+    required this.ownerId,
+    required this.farmerName,
+    this.farmName,
+    this.address,
+    required this.latitude,
+    required this.longitude,
+    this.distanceKm,
+    required this.listings,
+    this.phone,
+  });
+
+  factory NearbyFarm.fromJson(Map<String, dynamic> json) => NearbyFarm(
+        ownerId: json['owner_id'] as int,
+        farmerName: json['farmer_name'] as String,
+        farmName: json['farm_name'] as String?,
+        address: json['address'] as String?,
+        latitude: (json['latitude'] as num).toDouble(),
+        longitude: (json['longitude'] as num).toDouble(),
+        distanceKm: (json['distance_km'] as num?)?.toDouble(),
+        listings: json['listings'] as int,
+        phone: json['phone'] as String?,
+      );
+}
+
+/// Tamparuli town - fallback reference point when the buyer has not
+/// set their own location.
+const double kTamparuliLat = 6.1447;
+const double kTamparuliLng = 116.2757;
+
 // --------------------------------------------------------------- service
 
 class ApiService {
@@ -277,12 +368,112 @@ class ApiService {
     currentUser = null;
   }
 
+  /// PUT /me - update your own name / phone / location.
+  static Future<AppUser> updateProfile({
+    String? fullName,
+    String? phone,
+    String? farmName,
+    String? address,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final response = await http
+        .put(
+          Uri.parse('$kBaseUrl/me'),
+          headers: _headers,
+          body: jsonEncode({
+            'full_name': ?fullName,
+            'phone': ?phone,
+            'farm_name': ?farmName,
+            'address': ?address,
+            'latitude': ?latitude,
+            'longitude': ?longitude,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      currentUser = AppUser.fromJson(jsonDecode(response.body));
+      return currentUser!;
+    }
+    throw Exception(_errorMessage(response));
+  }
+
+  /// POST /me/password - change your own password.
+  static Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$kBaseUrl/me/password'),
+          headers: _headers,
+          body: jsonEncode({
+            'current_password': currentPassword,
+            'new_password': newPassword,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 204 || response.statusCode == 200) return;
+    throw Exception(_errorMessage(response));
+  }
+
+  /// GET /farms/nearby - FR3 proximity map data.
+  static Future<List<NearbyFarm>> fetchNearbyFarms({
+    double? lat,
+    double? lng,
+    double? radiusKm,
+  }) async {
+    final params = <String, String>{
+      if (lat != null) 'lat': '$lat',
+      if (lng != null) 'lng': '$lng',
+      if (radiusKm != null) 'radius_km': '$radiusKm',
+    };
+    final uri = Uri.parse('$kBaseUrl/farms/nearby')
+        .replace(queryParameters: params.isEmpty ? null : params);
+    final response = await http
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((f) => NearbyFarm.fromJson(f)).toList();
+    }
+    throw Exception(_errorMessage(response));
+  }
+
+  /// GET /me/stats - activity summary for the profile screen.
+  static Future<UserStats> fetchMyStats() async {
+    final response = await http
+        .get(Uri.parse('$kBaseUrl/me/stats'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      return UserStats.fromJson(jsonDecode(response.body));
+    }
+    throw Exception(_errorMessage(response));
+  }
+
   // -------------------------------------------------------- products
 
   /// GET /products - the public marketplace, every farmer's crops.
-  static Future<List<Product>> fetchProducts() async {
+  static Future<List<Product>> fetchProducts({
+    double? lat,
+    double? lng,
+    double? radiusKm,
+    String? sort,
+  }) async {
+    final params = <String, String>{
+      if (lat != null) 'lat': '$lat',
+      if (lng != null) 'lng': '$lng',
+      if (radiusKm != null) 'radius_km': '$radiusKm',
+      if (sort != null) 'sort': ?sort,
+    };
+    final uri = Uri.parse('$kBaseUrl/products')
+        .replace(queryParameters: params.isEmpty ? null : params);
     final response = await http
-        .get(Uri.parse('$kBaseUrl/products'), headers: _headers)
+        .get(uri, headers: _headers)
         .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
