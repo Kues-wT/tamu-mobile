@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
@@ -22,6 +23,15 @@ class _AddCropScreenState extends State<AddCropScreen> {
   late String _category;
   bool _saving = false;
 
+  // FR4: chosen 3D model, and the catalogue loaded from the backend.
+  String? _modelKey;
+  late Future<List<ArModel>> _modelsFuture;
+
+  // FR4: the farmer's own photogrammetry scan.
+  bool _uploading = false;
+  String? _uploadedName;      // set once a scan exists on the server
+  double? _uploadedSizeKb;
+
   bool get _isEditing => widget.existing != null;
 
   static const _categories = {
@@ -40,6 +50,9 @@ class _AddCropScreenState extends State<AddCropScreen> {
         TextEditingController(text: e?.pricePerKg.toStringAsFixed(2) ?? '');
     _stockController = TextEditingController(text: e?.stockKg.toString() ?? '');
     _category = e?.category ?? 'vegetable';
+    _modelKey = e?.modelKey;
+    _uploadedName = e?.modelFile;
+    _modelsFuture = ApiService.fetchArModels();
   }
 
   @override
@@ -48,6 +61,90 @@ class _AddCropScreenState extends State<AddCropScreen> {
     _priceController.dispose();
     _stockController.dispose();
     super.dispose();
+  }
+
+  /// Picks a .glb exported from a photogrammetry app and uploads it.
+  /// Only possible once the crop exists, because the file is attached
+  /// to a product id.
+  Future<void> _pickAndUploadScan() async {
+    if (!_isEditing) {
+      _snack(
+        'Save the crop first, then you can upload your 3D scan.',
+        TamuColors.warning,
+      );
+      return;
+    }
+
+    // file_picker v12+ uses static methods and returns PlatformFile
+    // directly. Bytes are read with readAsBytes(), which also works on web.
+    final picked = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['glb'],
+    );
+    if (picked == null) return;
+
+    final List<int> bytes;
+    try {
+      bytes = await picked.readAsBytes();
+    } catch (_) {
+      if (!mounted) return;
+      _snack('Could not read that file.', TamuColors.danger);
+      return;
+    }
+
+    setState(() {
+      _uploading = true;
+    });
+
+    try {
+      final res = await ApiService.uploadProductModel(
+        productId: widget.existing!.id,
+        filename: picked.name,
+        bytes: bytes,
+      );
+      if (!mounted) return;
+      setState(() {
+        _uploading = false;
+        _uploadedName = res.filename;
+        _uploadedSizeKb = res.sizeKb;
+      });
+      _snack(
+        res.warning ?? 'Your 3D scan was uploaded successfully!',
+        res.warning == null ? TamuColors.primary : TamuColors.warning,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _uploading = false;
+      });
+      _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
+    }
+  }
+
+  Future<void> _removeScan() async {
+    if (!_isEditing || _uploadedName == null) return;
+    try {
+      await ApiService.deleteProductModel(widget.existing!.id);
+      if (!mounted) return;
+      setState(() {
+        _uploadedName = null;
+        _uploadedSizeKb = null;
+      });
+      _snack('3D scan removed.', TamuColors.primary);
+    } catch (e) {
+      if (!mounted) return;
+      _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
+    }
+  }
+
+  void _snack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: color,
+        content: Text(msg,
+            style: const TextStyle(fontSize: 15, color: Colors.white)),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -71,6 +168,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
           pricePerKg: price,
           stockKg: stock,
           category: _category,
+          modelKey: _modelKey,
         );
       } else {
         await ApiService.createProduct(
@@ -78,6 +176,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
           pricePerKg: price,
           stockKg: stock,
           category: _category,
+          modelKey: _modelKey,
         );
       }
 
@@ -115,7 +214,9 @@ class _AddCropScreenState extends State<AddCropScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(TamuSizes.pagePadding),
                 children: [
-                  _buildPhotoPlaceholder(),
+                  _buildScanUploader(),
+                  const SizedBox(height: TamuSizes.gap),
+                  _buildModelPicker(),
                   const SizedBox(height: 20),
 
                   _label('Crop Name'),
@@ -234,23 +335,225 @@ class _AddCropScreenState extends State<AddCropScreen> {
                 color: TamuColors.textPrimary)),
       );
 
-  Widget _buildPhotoPlaceholder() {
+  /// FR4: upload a real photogrammetry scan of this crop.
+  Widget _buildScanUploader() {
+    final has = _uploadedName != null;
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 28),
+      padding: const EdgeInsets.all(TamuSizes.cardPadding),
       decoration: BoxDecoration(
-        color: TamuColors.lightGreen,
+        color: has ? TamuColors.lightGreen : TamuColors.surface,
         borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(color: TamuColors.secondary, width: 2),
+        border: Border.all(
+          color: has ? TamuColors.primary : TamuColors.border,
+          width: has ? 2 : 1,
+        ),
       ),
-      child: const Column(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.add_a_photo_outlined, size: 36, color: TamuColors.primary),
-          SizedBox(height: 8),
-          Text('Photo / 3D AR Model',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          SizedBox(height: 2),
-          Text('Coming in a later iteration',
-              style: TextStyle(fontSize: 13, color: TamuColors.textSecondary)),
+          Row(
+            children: [
+              Icon(has ? Icons.check_circle : Icons.camera_alt_outlined,
+                  size: 20,
+                  color: has ? TamuColors.primary : TamuColors.textSecondary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('My Own 3D Scan',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+              if (has)
+                TextButton(
+                  onPressed: _uploading ? null : _removeScan,
+                  child: const Text('Remove',
+                      style: TextStyle(
+                          fontSize: 14, color: TamuColors.danger)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (has) ...[
+            Text(
+              _uploadedSizeKb == null
+                  ? 'A scan of your real crop is attached. Buyers will see '
+                      'this instead of the gallery model.'
+                  : 'Scan attached (${_uploadedSizeKb!.toStringAsFixed(0)} KB). '
+                      'Buyers will see this instead of the gallery model.',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ] else ...[
+            const Text(
+              'Photograph your actual crop with a free scanning app, then '
+              'upload the .glb file here.',
+              style: TextStyle(fontSize: 13, color: TamuColors.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3F2FD),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'How to make a scan:\n'
+                '1. Install KIRI Engine or RealityScan (both free)\n'
+                '2. Walk around your crop taking photos from all sides\n'
+                '3. Wait for processing, then export as GLB\n'
+                '4. Come back here and upload the file (max 10 MB)',
+                style: TextStyle(fontSize: 12.5),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          if (!_isEditing)
+            const Text(
+              'Save this crop first, then reopen it to upload a scan.',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: TamuColors.textSecondary),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: _uploading ? null : _pickAndUploadScan,
+              icon: _uploading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.upload_file),
+              label: Text(_uploading
+                  ? 'Uploading...'
+                  : (has ? 'Replace scan' : 'Upload .glb scan')),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// FR4: gallery of pre-loaded 3D models the farmer can attach.
+  Widget _buildModelPicker() {
+    return Container(
+      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      decoration: BoxDecoration(
+        color: TamuColors.surface,
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        border: Border.all(color: TamuColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.view_in_ar, size: 20, color: TamuColors.primary),
+              const SizedBox(width: 8),
+              const Text('3D Model for AR',
+                  style:
+                      TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              if (_modelKey != null)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _modelKey = null;
+                  }),
+                  child: const Text('Clear',
+                      style: TextStyle(fontSize: 14)),
+                ),
+            ],
+          ),
+          const Text(
+            'Buyers can inspect this crop in 3D and place it in their room '
+            'using AR. Optional.',
+            style: TextStyle(fontSize: 13, color: TamuColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          FutureBuilder<List<ArModel>>(
+            future: _modelsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 60,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return const Text('Could not load the 3D model gallery.',
+                    style:
+                        TextStyle(fontSize: 13, color: TamuColors.danger));
+              }
+              final all = snapshot.data ?? [];
+              // Show models for the chosen category first.
+              final models = [
+                ...all.where((m) => m.category == _category),
+                ...all.where((m) => m.category != _category),
+              ];
+
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: models.map((m) {
+                  final selected = _modelKey == m.key;
+                  return InkWell(
+                    onTap: () => setState(() {
+                      _modelKey = m.key;
+                    }),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? TamuColors.lightGreen
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: selected
+                              ? TamuColors.primary
+                              : TamuColors.border,
+                          width: selected ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (selected)
+                            const Padding(
+                              padding: EdgeInsets.only(right: 6),
+                              child: Icon(Icons.check_circle,
+                                  size: 16, color: TamuColors.primary),
+                            ),
+                          Text(m.label,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: selected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: selected
+                                    ? TamuColors.primary
+                                    : TamuColors.textPrimary,
+                              )),
+                          const SizedBox(width: 6),
+                          Text('${m.sizeKb.toStringAsFixed(0)} KB',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: TamuColors.textSecondary)),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+          if (_modelKey == null) ...[
+            const SizedBox(height: 8),
+            const Text('No model selected - this crop will have no AR view.',
+                style: TextStyle(
+                    fontSize: 12, color: TamuColors.textSecondary)),
+          ],
         ],
       ),
     );

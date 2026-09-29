@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import 'ar_view_screen.dart';
 
 /// Product detail + place order.
 /// Returns the crop name to the previous screen if an order was placed.
@@ -72,6 +73,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 _buildImageArea(),
                 const SizedBox(height: 16),
                 _buildInfoCard(),
+                const SizedBox(height: 12),
+                _buildArButton(),
                 const SizedBox(height: 16),
                 if (p.isOutOfStock)
                   _buildOutOfStock()
@@ -132,23 +135,72 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               style: const TextStyle(fontSize: 72),
             ),
           ),
-          // AR proof-of-concept placeholder.
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(20),
+          // FR4: AR badge, only when a 3D model is attached.
+          if (p.hasArModel)
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: TamuColors.primary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.view_in_ar, size: 14, color: Colors.white),
+                    SizedBox(width: 4),
+                    Text('3D / AR',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white)),
+                  ],
+                ),
               ),
-              child: const Text('👁️  View in AR (soon)',
-                  style: TextStyle(fontSize: 12, color: Colors.white)),
             ),
-          ),
         ],
       ),
+    );
+  }
+
+  /// FR4: opens the 3D / AR viewer.
+  Widget _buildArButton() {
+    if (!p.hasArModel) {
+      return Container(
+        padding: const EdgeInsets.all(TamuSizes.cardPadding),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEEEEE),
+          borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.view_in_ar_outlined,
+                size: 20, color: TamuColors.textSecondary),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text('No 3D model available for this crop yet.',
+                  style: TextStyle(
+                      fontSize: 14, color: TamuColors.textSecondary)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return OutlinedButton.icon(
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ArViewScreen(product: p)),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: TamuColors.primary,
+        side: const BorderSide(color: TamuColors.primary, width: 2),
+        backgroundColor: TamuColors.lightGreen,
+      ),
+      icon: const Icon(Icons.view_in_ar),
+      label: const Text('View in 3D / AR'),
     );
   }
 

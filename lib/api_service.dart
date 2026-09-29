@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 /// Real Android phone on Wi-Fi -> `http://<your-laptop-IP>:8000`
 ///   (find it with `ipconfig`, look for IPv4 Address, e.g. 192.168.0.12)
 /// Android emulator            -> http://10.0.2.2:8000
-const String kBaseUrl = 'http://127.0.0.1:8000';
+const String kBaseUrl = 'http://192.168.1.108:8000';
 
 // ---------------------------------------------------------------- models
 
@@ -88,6 +88,10 @@ class Product {
   final double? latitude;
   final double? longitude;
   final double? distanceKm;
+  final String? modelKey;     // FR4 catalogue model
+  final String? modelUrl;     // FR4 resolved URL
+  final String? modelFile;    // FR4 uploaded scan filename
+  final String? modelSource;  // "catalogue" | "upload" | null
 
   Product({
     required this.id,
@@ -101,6 +105,10 @@ class Product {
     this.latitude,
     this.longitude,
     this.distanceKm,
+    this.modelKey,
+    this.modelUrl,
+    this.modelFile,
+    this.modelSource,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -115,7 +123,17 @@ class Product {
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
         distanceKm: (json['distance_km'] as num?)?.toDouble(),
+        modelKey: json['model_key'] as String?,
+        modelUrl: json['model_url'] as String?,
+        modelFile: json['model_file'] as String?,
+        modelSource: json['model_source'] as String?,
       );
+
+  /// True when this listing has a 3D model that can be viewed in AR.
+  bool get hasArModel => modelUrl != null && modelUrl!.isNotEmpty;
+
+  /// True when the model is the farmer's own photogrammetry scan.
+  bool get hasOwnScan => modelSource == 'upload';
 
   bool get isLowStock => stockKg > 0 && stockKg < 15;
   bool get isOutOfStock => stockKg <= 0;
@@ -281,6 +299,154 @@ class NearbyFarm {
       );
 }
 
+class ArModel {
+  final String key;
+  final String label;
+  final String category;
+  final String url;
+  final double sizeKb;
+
+  ArModel({
+    required this.key,
+    required this.label,
+    required this.category,
+    required this.url,
+    required this.sizeKb,
+  });
+
+  factory ArModel.fromJson(Map<String, dynamic> json) => ArModel(
+        key: json['key'] as String,
+        label: json['label'] as String,
+        category: json['category'] as String,
+        url: json['url'] as String,
+        sizeKb: (json['size_kb'] as num).toDouble(),
+      );
+}
+
+class AppNotification {
+  final int id;
+  final String type;
+  final String title;
+  final String message;
+  final bool isRead;
+  final String? refType;
+  final int? refId;
+  final DateTime createdAt;
+
+  AppNotification({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.message,
+    required this.isRead,
+    this.refType,
+    this.refId,
+    required this.createdAt,
+  });
+
+  factory AppNotification.fromJson(Map<String, dynamic> json) =>
+      AppNotification(
+        id: json['id'] as int,
+        type: json['type'] as String,
+        title: json['title'] as String,
+        message: json['message'] as String,
+        isRead: json['is_read'] as bool,
+        refType: json['ref_type'] as String?,
+        refId: json['ref_id'] as int?,
+        createdAt: DateTime.parse(json['created_at'] as String),
+      );
+}
+
+class CropRequest {
+  final int id;
+  final int buyerId;
+  final String buyerName;
+  final String cropName;
+  final int quantityKg;
+  final double? maxPricePerKg;
+  final String? note;
+  final String status;
+  final int? acceptedById;
+  final String? acceptedByName;
+  final int? convertedOrderId;
+  final DateTime createdAt;
+
+  CropRequest({
+    required this.id,
+    required this.buyerId,
+    required this.buyerName,
+    required this.cropName,
+    required this.quantityKg,
+    this.maxPricePerKg,
+    this.note,
+    required this.status,
+    this.acceptedById,
+    this.acceptedByName,
+    this.convertedOrderId,
+    required this.createdAt,
+  });
+
+  factory CropRequest.fromJson(Map<String, dynamic> json) => CropRequest(
+        id: json['id'] as int,
+        buyerId: json['buyer_id'] as int,
+        buyerName: json['buyer_name'] as String,
+        cropName: json['crop_name'] as String,
+        quantityKg: json['quantity_kg'] as int,
+        maxPricePerKg: (json['max_price_per_kg'] as num?)?.toDouble(),
+        note: json['note'] as String?,
+        status: json['status'] as String,
+        acceptedById: json['accepted_by_id'] as int?,
+        acceptedByName: json['accepted_by_name'] as String?,
+        convertedOrderId: json['converted_order_id'] as int?,
+        createdAt: DateTime.parse(json['created_at'] as String),
+      );
+
+  bool get isOpen => status == 'open';
+}
+
+class Badges {
+  final int unreadNotifications;
+  final int pendingOrders;
+  final int openRequests;
+
+  const Badges({
+    this.unreadNotifications = 0,
+    this.pendingOrders = 0,
+    this.openRequests = 0,
+  });
+
+  factory Badges.fromJson(Map<String, dynamic> json) => Badges(
+        unreadNotifications: json['unread_notifications'] as int,
+        pendingOrders: json['pending_orders'] as int,
+        openRequests: json['open_requests'] as int,
+      );
+}
+
+class ModelUploadResult {
+  final int productId;
+  final String filename;
+  final double sizeKb;
+  final String modelUrl;
+  final String? warning;
+
+  ModelUploadResult({
+    required this.productId,
+    required this.filename,
+    required this.sizeKb,
+    required this.modelUrl,
+    this.warning,
+  });
+
+  factory ModelUploadResult.fromJson(Map<String, dynamic> json) =>
+      ModelUploadResult(
+        productId: json['product_id'] as int,
+        filename: json['filename'] as String,
+        sizeKb: (json['size_kb'] as num).toDouble(),
+        modelUrl: json['model_url'] as String,
+        warning: json['warning'] as String?,
+      );
+}
+
 /// Tamparuli town - fallback reference point when the buyer has not
 /// set their own location.
 const double kTamparuliLat = 6.1447;
@@ -368,7 +534,7 @@ class ApiService {
     currentUser = null;
   }
 
-  /// PUT /me - update your own name / phone / location.
+  /// PUT /me - update your own name / phone.
   static Future<AppUser> updateProfile({
     String? fullName,
     String? phone,
@@ -468,7 +634,7 @@ class ApiService {
       if (lat != null) 'lat': '$lat',
       if (lng != null) 'lng': '$lng',
       if (radiusKm != null) 'radius_km': '$radiusKm',
-      if (sort != null) 'sort': ?sort,
+      'sort': ?sort,
     };
     final uri = Uri.parse('$kBaseUrl/products')
         .replace(queryParameters: params.isEmpty ? null : params);
@@ -502,6 +668,7 @@ class ApiService {
     required double pricePerKg,
     required int stockKg,
     required String category,
+    String? modelKey,
   }) async {
     final response = await http
         .post(
@@ -512,6 +679,7 @@ class ApiService {
             'price_per_kg': pricePerKg,
             'stock_kg': stockKg,
             'category': category,
+            'model_key': ?modelKey,
           }),
         )
         .timeout(const Duration(seconds: 10));
@@ -529,6 +697,7 @@ class ApiService {
     double? pricePerKg,
     int? stockKg,
     String? category,
+    String? modelKey,
   }) async {
     final response = await http
         .put(
@@ -540,6 +709,7 @@ class ApiService {
             'price_per_kg': ?pricePerKg,
             'stock_kg': ?stockKg,
             'category': ?category,
+            'model_key': ?modelKey,
           }),
         )
         .timeout(const Duration(seconds: 10));
@@ -615,6 +785,179 @@ class ApiService {
       return Order.fromJson(jsonDecode(response.body));
     }
     throw Exception(_errorMessage(response));
+  }
+
+  // -------------------------------------------------------------- AR
+
+  /// GET /ar/models - FR4, the pre-loaded 3D model gallery.
+  static Future<List<ArModel>> fetchArModels() async {
+    final response = await http
+        .get(Uri.parse('$kBaseUrl/ar/models'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((m) => ArModel.fromJson(m)).toList();
+    }
+    throw Exception(_errorMessage(response));
+  }
+
+  /// POST /products/{id}/model - upload the farmer's own .glb scan.
+  /// `bytes` keeps this working on web, where there is no File path.
+  static Future<ModelUploadResult> uploadProductModel({
+    required int productId,
+    required String filename,
+    required List<int> bytes,
+  }) async {
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$kBaseUrl/products/$productId/model'),
+    );
+    if (_token != null) {
+      req.headers['Authorization'] = 'Bearer $_token';
+    }
+    req.files.add(
+      http.MultipartFile.fromBytes('file', bytes, filename: filename),
+    );
+
+    final streamed = await req.send().timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      return ModelUploadResult.fromJson(jsonDecode(response.body));
+    }
+    throw Exception(_errorMessage(response));
+  }
+
+  /// DELETE /products/{id}/model - remove the uploaded scan.
+  static Future<void> deleteProductModel(int productId) async {
+    final response = await http
+        .delete(Uri.parse('$kBaseUrl/products/$productId/model'),
+            headers: _headers)
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 204 || response.statusCode == 200) return;
+    throw Exception(_errorMessage(response));
+  }
+
+  // ------------------------------------------- notifications (FR8)
+
+  static Future<List<AppNotification>> fetchNotifications({
+    bool unreadOnly = false,
+    String? type,
+  }) async {
+    final params = <String, String>{
+      if (unreadOnly) 'unread_only': 'true',
+      'type': ?type,
+    };
+    final uri = Uri.parse('$kBaseUrl/notifications')
+        .replace(queryParameters: params.isEmpty ? null : params);
+    final r = await http.get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 200) {
+      final List<dynamic> d = jsonDecode(r.body);
+      return d.map((n) => AppNotification.fromJson(n)).toList();
+    }
+    throw Exception(_errorMessage(r));
+  }
+
+    /// GET /me/badges - all three header counts in one request.
+  static Future<Badges> fetchBadges() async {
+    final r = await http
+        .get(Uri.parse('$kBaseUrl/me/badges'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 200) return Badges.fromJson(jsonDecode(r.body));
+    throw Exception(_errorMessage(r));
+  }
+
+  static Future<int> fetchUnreadCount() async {
+    final r = await http
+        .get(Uri.parse('$kBaseUrl/notifications/unread-count'),
+            headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 200) {
+      return jsonDecode(r.body)['unread'] as int;
+    }
+    throw Exception(_errorMessage(r));
+  }
+
+  static Future<void> markNotificationRead(int id) async {
+    final r = await http
+        .patch(Uri.parse('$kBaseUrl/notifications/$id/read'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 200) return;
+    throw Exception(_errorMessage(r));
+  }
+
+  static Future<void> markAllNotificationsRead() async {
+    final r = await http
+        .post(Uri.parse('$kBaseUrl/notifications/read-all'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 204 || r.statusCode == 200) return;
+    throw Exception(_errorMessage(r));
+  }
+
+  // -------------------------------------------- crop requests (FR6)
+
+  static Future<List<CropRequest>> fetchRequests({
+    String? status,
+    bool mine = false,
+  }) async {
+    final params = <String, String>{
+      'status': ?status,
+      if (mine) 'mine': 'true',
+    };
+    final uri = Uri.parse('$kBaseUrl/requests')
+        .replace(queryParameters: params.isEmpty ? null : params);
+    final r = await http.get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 200) {
+      final List<dynamic> d = jsonDecode(r.body);
+      return d.map((x) => CropRequest.fromJson(x)).toList();
+    }
+    throw Exception(_errorMessage(r));
+  }
+
+  static Future<CropRequest> createRequest({
+    required String cropName,
+    required int quantityKg,
+    double? maxPricePerKg,
+    String? note,
+  }) async {
+    final r = await http
+        .post(Uri.parse('$kBaseUrl/requests'),
+            headers: _headers,
+            body: jsonEncode({
+              'crop_name': cropName,
+              'quantity_kg': quantityKg,
+              'max_price_per_kg': ?maxPricePerKg,
+              'note': ?note,
+            }))
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 201 || r.statusCode == 200) {
+      return CropRequest.fromJson(jsonDecode(r.body));
+    }
+    throw Exception(_errorMessage(r));
+  }
+
+  /// FR6: accepting a request. Pass productId to also create an order
+  /// for the buyer straight away (request-to-order conversion).
+  static Future<CropRequest> acceptRequest(int id, {int? productId}) async {
+    final r = await http
+        .post(Uri.parse('$kBaseUrl/requests/$id/accept'),
+            headers: _headers,
+            body: jsonEncode({'product_id': ?productId}))
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 200) return CropRequest.fromJson(jsonDecode(r.body));
+    throw Exception(_errorMessage(r));
+  }
+
+  static Future<CropRequest> cancelRequest(int id) async {
+    final r = await http
+        .post(Uri.parse('$kBaseUrl/requests/$id/cancel'), headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 200) return CropRequest.fromJson(jsonDecode(r.body));
+    throw Exception(_errorMessage(r));
   }
 
   // --------------------------------------------------------- reports

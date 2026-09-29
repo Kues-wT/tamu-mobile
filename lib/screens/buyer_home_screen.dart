@@ -5,7 +5,8 @@ import 'product_detail_screen.dart';
 import 'orders_screen.dart';
 import 'nearby_farms_screen.dart';
 import 'profile_screen.dart';
-
+import 'notifications_screen.dart';
+import 'requests_screen.dart';
 
 /// Buyer marketplace home.
 /// Loads REAL products from the FastAPI backend.
@@ -22,6 +23,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   String _search = '';
   bool _nearbyOnly = false;      // FR3: filter by proximity
   double _radiusKm = 10;
+  late Future<Badges> _badgesFuture;
 
   static const _categories = ['All', 'vegetable', 'fruit', 'rice'];
 
@@ -29,6 +31,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   void initState() {
     super.initState();
     _productsFuture = _load();
+    _badgesFuture = ApiService.fetchBadges();
   }
 
   /// Always asks the backend for distances, measured from the buyer's
@@ -46,6 +49,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   Future<void> _refresh() async {
     setState(() {
       _productsFuture = _load();
+      _badgesFuture = ApiService.fetchBadges();
     });
     await _productsFuture;
   }
@@ -95,7 +99,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     );
     if (mounted) setState(() {});
   }
-
 
   List<Product> _filter(List<Product> all) {
     return all.where((p) {
@@ -185,6 +188,115 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     );
   }
 
+    /// FR8: header icons with live red count badges.
+  Widget _buildHeaderIcons() {
+    return FutureBuilder<Badges>(
+      future: _badgesFuture,
+      builder: (context, snap) {
+        final bg = snap.data ?? const Badges();
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _badgeIcon(
+              icon: Icons.notifications_outlined,
+              tooltip: 'Notifications',
+              count: bg.unreadNotifications,
+              onPressed: _openNotifications,
+            ),
+            _badgeIcon(
+              icon: Icons.campaign_outlined,
+              tooltip: 'Crop Requests',
+              count: bg.openRequests,
+              onPressed: _openRequests,
+            ),
+            _badgeIcon(
+              icon: Icons.receipt_long_outlined,
+              tooltip: 'My Orders',
+              count: bg.pendingOrders,
+              onPressed: _openOrders,
+            ),
+            IconButton(
+              tooltip: 'Nearby Farms',
+              visualDensity: VisualDensity.compact,
+              onPressed: _openNearbyFarms,
+              icon: const Icon(Icons.map_outlined, color: Colors.white),
+            ),
+            IconButton(
+              tooltip: 'My Profile',
+              visualDensity: VisualDensity.compact,
+              onPressed: _openProfile,
+              icon: const Icon(Icons.person_outline, color: Colors.white),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Reusable header icon with an optional red count badge.
+  Widget _badgeIcon({
+    required IconData icon,
+    required String tooltip,
+    required int count,
+    required VoidCallback onPressed,
+  }) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          visualDensity: VisualDensity.compact,
+          icon: Icon(icon, color: Colors.white),
+        ),
+        if (count > 0)
+          Positioned(
+            right: 2,
+            top: 2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+              decoration: BoxDecoration(
+                color: TamuColors.danger,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Text(
+                count > 9 ? '9+' : '$count',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
+    if (mounted) {
+      setState(() {
+        _badgesFuture = ApiService.fetchBadges();
+      });
+    }
+  }
+
+  Future<void> _openRequests() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const RequestsScreen()),
+    );
+    if (mounted) {
+      setState(() {
+        _badgesFuture = ApiService.fetchBadges();
+      });
+    }
+  }
+
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -222,24 +334,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'Nearby Farms',
-                onPressed: _openNearbyFarms,
-                icon: const Icon(Icons.map_outlined, color: Colors.white),
-              ),
-              IconButton(
-                tooltip: 'My Orders',
-                onPressed: _openOrders,
-                icon: const Icon(
-                  Icons.receipt_long_outlined,
-                  color: Colors.white,
-                ),
-              ),
-              IconButton(
-                tooltip: 'My Profile',
-                onPressed: _openProfile,
-                icon: const Icon(Icons.person_outline, color: Colors.white),
-              ),
+            _buildHeaderIcons(),
             ],
           ),
           const SizedBox(height: 8),

@@ -5,7 +5,8 @@ import 'add_crop_screen.dart';
 import 'orders_screen.dart';
 import 'sales_report_screen.dart';
 import 'profile_screen.dart';
-
+import 'notifications_screen.dart';
+import 'requests_screen.dart';
 
 /// Farmer dashboard - shows ONLY the logged-in farmer's own crops.
 class FarmerHomeScreen extends StatefulWidget {
@@ -17,12 +18,14 @@ class FarmerHomeScreen extends StatefulWidget {
 
 class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   late Future<List<Product>> _productsFuture;
+    late Future<Badges> _badgesFuture;
 
   @override
   void initState() {
     super.initState();
     // /products/mine - not /products. This is the ownership fix.
     _productsFuture = ApiService.fetchMyProducts();
+    _badgesFuture = ApiService.fetchBadges();
   }
 
   Future<void> _refresh() async {
@@ -30,6 +33,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     // setState() must never be given a Future.
     setState(() {
       _productsFuture = ApiService.fetchMyProducts();
+      _badgesFuture = ApiService.fetchBadges();
     });
     await _productsFuture;
   }
@@ -117,7 +121,6 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     if (mounted && changed == true) await _refresh();
   }
 
-
   void _snack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -193,6 +196,118 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     );
   }
 
+
+    /// FR8: header icons with live red count badges.
+  Widget _buildHeaderIcons() {
+    return FutureBuilder<Badges>(
+      future: _badgesFuture,
+      builder: (context, snap) {
+        final b = snap.data ?? const Badges();
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _badgeIcon(
+              icon: Icons.notifications_outlined,
+              tooltip: 'Notifications',
+              count: b.unreadNotifications,
+              onPressed: _openNotifications,
+            ),
+            _badgeIcon(
+              icon: Icons.campaign_outlined,
+              tooltip: 'Crop Requests',
+              count: b.openRequests,
+              onPressed: _openRequests,
+            ),
+            _badgeIcon(
+              icon: Icons.receipt_long_outlined,
+              tooltip: 'Incoming Orders',
+              count: b.pendingOrders,
+              onPressed: _openOrders,
+            ),
+            IconButton(
+              tooltip: 'Sales Report',
+              visualDensity: VisualDensity.compact,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SalesReportScreen()),
+              ),
+              icon: const Icon(Icons.bar_chart, color: Colors.white),
+            ),
+            IconButton(
+              tooltip: 'My Profile',
+              visualDensity: VisualDensity.compact,
+              onPressed: _openProfile,
+              icon: const Icon(Icons.person_outline, color: Colors.white),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Reusable header icon with an optional red count badge.
+  Widget _badgeIcon({
+    required IconData icon,
+    required String tooltip,
+    required int count,
+    required VoidCallback onPressed,
+  }) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          visualDensity: VisualDensity.compact,
+          icon: Icon(icon, color: Colors.white),
+        ),
+        if (count > 0)
+          Positioned(
+            right: 2,
+            top: 2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+              decoration: BoxDecoration(
+                color: TamuColors.danger,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Text(
+                count > 9 ? '9+' : '$count',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
+    if (mounted) {
+      setState(() {
+        _badgesFuture = ApiService.fetchBadges();
+      });
+    }
+  }
+
+  Future<void> _openRequests() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const RequestsScreen()),
+    );
+    if (mounted) {
+      setState(() {
+        _badgesFuture = ApiService.fetchBadges();
+      });
+    }
+  }
+
   Widget _buildHeader() {
     final name = ApiService.currentUser?.fullName ?? 'Farmer';
     return Container(
@@ -208,34 +323,26 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$_greeting, $name 🌾',
+                Text('$_greeting 🌾',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 15, color: Color(0xFFA5D6A7))),
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.white)),
-                const SizedBox(height: 2),
                 const Text('📍 Tamparuli, Sabah',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 13, color: Color(0xFFA5D6A7))),
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Sales Report',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SalesReportScreen()),
-            ),
-            icon: const Icon(Icons.bar_chart, color: Colors.white),
-          ),
-          IconButton(
-            tooltip: 'Incoming Orders',
-            onPressed: _openOrders,
-            icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
-          ),
-          IconButton(
-            tooltip: 'My Profile',
-            onPressed: _openProfile,
-            icon: const Icon(Icons.person_outline, color: Colors.white),
-          ),
+          _buildHeaderIcons(),
         ],
       ),
     );
@@ -246,13 +353,15 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     final totalValue =
         products.fold<double>(0, (sum, p) => sum + (p.pricePerKg * p.stockKg));
 
+    // mainAxisExtent gives every card the SAME fixed height, so the
+    // layout cannot overflow when the device uses a larger text scale.
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: TamuSizes.gap,
       mainAxisSpacing: TamuSizes.gap,
-      childAspectRatio: 1.6,
+      childAspectRatio: 1.45,
       children: [
         _summaryCard('Active Listings', '${products.length}',
             Icons.inventory_2_outlined, TamuColors.primary),
@@ -266,9 +375,9 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     );
   }
 
-  Widget _summaryCard(String label, String value, IconData icon, Color color) {
+   Widget _summaryCard(String label, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: TamuColors.surface,
         borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
@@ -277,15 +386,25 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 6),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 4),
+          // FittedBox shrinks long values (e.g. "RM 12345") instead of
+          // letting them overflow the card.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value,
+                maxLines: 1,
+                style: TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+          ),
           Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style:
-                  const TextStyle(fontSize: 13, color: TamuColors.textSecondary)),
+                  const TextStyle(fontSize: 12, color: TamuColors.textSecondary)),
         ],
       ),
     );

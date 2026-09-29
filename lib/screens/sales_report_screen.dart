@@ -130,7 +130,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: TamuSizes.gap,
       mainAxisSpacing: TamuSizes.gap,
-      childAspectRatio: 1.7,
+      childAspectRatio: 1.5,
       children: [
         _statCard('Completed Orders', '${r.totalOrders}',
             Icons.check_circle_outline, TamuColors.primary),
@@ -146,7 +146,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
   Widget _statCard(String label, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: TamuColors.surface,
         borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
@@ -155,19 +155,23 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 22, color: color),
-          const SizedBox(height: 6),
+          Icon(icon, size: 20, color: color),
+          const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(value,
+                maxLines: 1,
                 style: TextStyle(
                     fontSize: 20, fontWeight: FontWeight.bold, color: color)),
           ),
           Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                  fontSize: 13, color: TamuColors.textSecondary)),
+                  fontSize: 12, color: TamuColors.textSecondary)),
         ],
       ),
     );
