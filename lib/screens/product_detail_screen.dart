@@ -21,6 +21,34 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   double get _total => p.pricePerKg * _quantity;
 
+  bool get _notYetAvailable {
+    final from = p.availableFrom;
+    return from != null && DateUtils.dateOnly(DateTime.now()).isBefore(
+      DateUtils.dateOnly(from),
+    );
+  }
+
+  bool get _availabilityEnded {
+    final until = p.availableUntil;
+    return until != null && DateUtils.dateOnly(DateTime.now()).isAfter(
+      DateUtils.dateOnly(until),
+    );
+  }
+
+  String _availabilityDate(DateTime date) =>
+      MaterialLocalizations.of(context).formatMediumDate(date);
+
+  String get _availabilitySummary {
+    final from = p.availableFrom;
+    final until = p.availableUntil;
+    if (from != null && until != null) {
+      return 'Available ${_availabilityDate(from)} to ${_availabilityDate(until)}';
+    }
+    if (from != null) return 'Available from ${_availabilityDate(from)}';
+    if (until != null) return 'Available until ${_availabilityDate(until)}';
+    return '';
+  }
+
   void _changeQty(int delta) {
     final next = _quantity + delta;
     if (next < 1 || next > p.stockKg) return;
@@ -76,7 +104,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 const SizedBox(height: 12),
                 _buildArButton(),
                 const SizedBox(height: 16),
-                if (p.isOutOfStock)
+                if (_availabilityEnded)
+                  _buildAvailabilityNotice(
+                    'This listing ended on ${_availabilityDate(p.availableUntil!)}.',
+                  )
+                else if (_notYetAvailable)
+                  _buildAvailabilityNotice(
+                    'Available from ${_availabilityDate(p.availableFrom!)}.',
+                  )
+                else if (p.isOutOfStock)
                   _buildOutOfStock()
                 else if (!isBuyer)
                   _buildBuyerOnlyNote()
@@ -252,6 +288,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               _stockBadge(),
             ],
           ),
+          if (p.availableFrom != null || p.availableUntil != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _availabilitySummary,
+              style: const TextStyle(
+                  fontSize: 13, color: TamuColors.textSecondary),
+            ),
+          ],
         ],
       ),
     );
@@ -370,6 +414,27 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
                   color: TamuColors.primary)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvailabilityNotice(String message) {
+    return Container(
+      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        border: Border.all(color: TamuColors.warning),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.event_available_outlined, color: TamuColors.warning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message,
+                style: const TextStyle(fontSize: 15, color: TamuColors.textPrimary)),
+          ),
         ],
       ),
     );

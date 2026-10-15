@@ -21,6 +21,8 @@ class _AddCropScreenState extends State<AddCropScreen> {
   late final TextEditingController _stockController;
 
   late String _category;
+  DateTime? _availableFrom;
+  DateTime? _availableUntil;
   bool _saving = false;
 
   // FR4: chosen 3D model, and the catalogue loaded from the backend.
@@ -50,6 +52,8 @@ class _AddCropScreenState extends State<AddCropScreen> {
         TextEditingController(text: e?.pricePerKg.toStringAsFixed(2) ?? '');
     _stockController = TextEditingController(text: e?.stockKg.toString() ?? '');
     _category = e?.category ?? 'vegetable';
+    _availableFrom = e?.availableFrom;
+    _availableUntil = e?.availableUntil;
     _modelKey = e?.modelKey;
     _uploadedName = e?.modelFile;
     _modelsFuture = ApiService.fetchArModels();
@@ -147,8 +151,57 @@ class _AddCropScreenState extends State<AddCropScreen> {
     );
   }
 
+  String _formatDate(DateTime value) =>
+      MaterialLocalizations.of(context).formatMediumDate(value);
+
+  Future<void> _chooseAvailabilityDate({required bool isFrom}) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final current = isFrom ? _availableFrom : _availableUntil;
+    var initial = current ?? today;
+    if (initial.isBefore(today)) initial = today;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: today,
+      lastDate: DateTime(today.year + 5),
+      helpText: isFrom ? 'When will this crop be available?' : 'Last day this crop is available',
+    );
+    if (picked == null) return;
+
+    setState(() {
+      if (isFrom) {
+        _availableFrom = DateUtils.dateOnly(picked);
+      } else {
+        _availableUntil = DateUtils.dateOnly(picked);
+      }
+    });
+  }
+
+  Widget _availabilityButton({required bool isFrom}) {
+    final value = isFrom ? _availableFrom : _availableUntil;
+    final label = isFrom ? 'Available from' : 'Available until';
+    return OutlinedButton.icon(
+      onPressed: () => _chooseAvailabilityDate(isFrom: isFrom),
+      icon: const Icon(Icons.calendar_today_outlined, size: 18),
+      label: Text(
+        value == null ? label : '$label: ${_formatDate(value)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13),
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_availableFrom != null &&
+        _availableUntil != null &&
+        _availableUntil!.isBefore(_availableFrom!)) {
+      _snack('Available until must be on or after available from.',
+          TamuColors.danger);
+      return;
+    }
 
     setState(() => _saving = true);
 
@@ -168,6 +221,8 @@ class _AddCropScreenState extends State<AddCropScreen> {
           pricePerKg: price,
           stockKg: stock,
           category: _category,
+          availableFrom: _availableFrom,
+          availableUntil: _availableUntil,
           modelKey: _modelKey,
         );
       } else {
@@ -176,6 +231,8 @@ class _AddCropScreenState extends State<AddCropScreen> {
           pricePerKg: price,
           stockKg: stock,
           category: _category,
+          availableFrom: _availableFrom,
+          availableUntil: _availableUntil,
           modelKey: _modelKey,
         );
       }
@@ -296,7 +353,34 @@ class _AddCropScreenState extends State<AddCropScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: TamuSizes.gap),
+                  _label('Crop Availability (optional)'),
+                  Row(
+                    children: [
+                      Expanded(child: _availabilityButton(isFrom: true)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _availabilityButton(isFrom: false)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Leave dates blank for crops available immediately with no planned end date.',
+                    style: TextStyle(
+                        fontSize: 12, color: TamuColors.textSecondary),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: (_availableFrom == null && _availableUntil == null)
+                          ? null
+                          : () => setState(() {
+                                _availableFrom = null;
+                                _availableUntil = null;
+                              }),
+                      child: const Text('Clear dates'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   ElevatedButton(
                     onPressed: _saving ? null : _save,

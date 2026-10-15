@@ -7,7 +7,15 @@ import 'package:http/http.dart' as http;
 /// Real Android phone on Wi-Fi -> `http://<your-laptop-IP>:8000`
 ///   (find it with `ipconfig`, look for IPv4 Address, e.g. 192.168.0.12)
 /// Android emulator            -> http://10.0.2.2:8000
-const String kBaseUrl = 'http://192.168.1.108:8000';
+const String kBaseUrl = 'http://192.168.0.200:8000';
+
+String? _dateOnlyIso(DateTime? value) {
+  if (value == null) return null;
+  final year = value.year.toString().padLeft(4, '0');
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
+}
 
 // ---------------------------------------------------------------- models
 
@@ -83,6 +91,8 @@ class Product {
   final double pricePerKg;
   final int stockKg;
   final String category;
+  final DateTime? availableFrom;
+  final DateTime? availableUntil;
   final int ownerId;
   final String? farmName;
   final double? latitude;
@@ -100,6 +110,8 @@ class Product {
     required this.pricePerKg,
     required this.stockKg,
     required this.category,
+    this.availableFrom,
+    this.availableUntil,
     required this.ownerId,
     this.farmName,
     this.latitude,
@@ -118,6 +130,12 @@ class Product {
         pricePerKg: (json['price_per_kg'] as num).toDouble(),
         stockKg: json['stock_kg'] as int,
         category: json['category'] as String,
+        availableFrom: json['available_from'] == null
+            ? null
+            : DateTime.parse(json['available_from'] as String),
+        availableUntil: json['available_until'] == null
+            ? null
+            : DateTime.parse(json['available_until'] as String),
         ownerId: json['owner_id'] as int,
         farmName: json['farm_name'] as String?,
         latitude: (json['latitude'] as num?)?.toDouble(),
@@ -668,6 +686,8 @@ class ApiService {
     required double pricePerKg,
     required int stockKg,
     required String category,
+    DateTime? availableFrom,
+    DateTime? availableUntil,
     String? modelKey,
   }) async {
     final response = await http
@@ -679,6 +699,8 @@ class ApiService {
             'price_per_kg': pricePerKg,
             'stock_kg': stockKg,
             'category': category,
+            'available_from': _dateOnlyIso(availableFrom),
+            'available_until': _dateOnlyIso(availableUntil),
             'model_key': ?modelKey,
           }),
         )
@@ -697,6 +719,8 @@ class ApiService {
     double? pricePerKg,
     int? stockKg,
     String? category,
+    DateTime? availableFrom,
+    DateTime? availableUntil,
     String? modelKey,
   }) async {
     final response = await http
@@ -709,6 +733,9 @@ class ApiService {
             'price_per_kg': ?pricePerKg,
             'stock_kg': ?stockKg,
             'category': ?category,
+            // Always send these keys so the farmer can clear an old date.
+            'available_from': _dateOnlyIso(availableFrom),
+            'available_until': _dateOnlyIso(availableUntil),
             'model_key': ?modelKey,
           }),
         )
@@ -861,7 +888,7 @@ class ApiService {
     throw Exception(_errorMessage(r));
   }
 
-    /// GET /me/badges - all three header counts in one request.
+  /// GET /me/badges - all three header counts in one request.
   static Future<Badges> fetchBadges() async {
     final r = await http
         .get(Uri.parse('$kBaseUrl/me/badges'), headers: _headers)
