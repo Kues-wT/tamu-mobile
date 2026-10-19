@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../map_config.dart';
 import 'ar_view_screen.dart';
+import 'nearby_farms_screen.dart';
 
 /// Product detail + place order.
 /// Returns the crop name to the previous screen if an order was placed.
@@ -57,6 +61,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     });
   }
 
+  Future<void> _openNearbyFarms() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NearbyFarmsScreen()),
+    );
+  }
+
   Future<void> _placeOrder() async {
     setState(() {
       _ordering = true;
@@ -103,6 +113,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 _buildInfoCard(),
                 const SizedBox(height: 12),
                 _buildArButton(),
+                const SizedBox(height: 16),
+                _buildPickupLocationCard(),
                 const SizedBox(height: 16),
                 if (_availabilityEnded)
                   _buildAvailabilityNotice(
@@ -296,6 +308,120 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   fontSize: 13, color: TamuColors.textSecondary),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Figma-inspired map card. It deliberately shows an approximate area only:
+  /// the exact public pickup point should be confirmed with the farmer.
+  Widget _buildPickupLocationCard() {
+    final farmName = (p.farmName == null || p.farmName!.trim().isEmpty)
+        ? 'Tamparuli pickup area'
+        : p.farmName!.trim();
+    final distance = p.distanceKm == null
+        ? 'Confirm the exact public meeting point with the farmer'
+        : 'Approx. ${p.distanceKm!.toStringAsFixed(1)} km away · Confirm the public pickup point';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        border: Border.all(color: TamuColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text('Pickup location',
+                    style: TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w600)),
+              ),
+              TextButton(
+                onPressed: _openNearbyFarms,
+                child: const Text('View map'),
+              ),
+            ],
+          ),
+          const Text('Public pickup point selected by the seller',
+              style: TextStyle(fontSize: 12, color: TamuColors.textSecondary)),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(13),
+            child: SizedBox(
+              height: 150,
+              child: (p.latitude != null && p.longitude != null)
+                  ? FlutterMap(
+                      options: MapOptions(
+                        initialCenter: LatLng(p.latitude!, p.longitude!),
+                        initialZoom: 14,
+                        minZoom: 12,
+                        maxZoom: 18,
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate: tamuOsmTileUrl,
+                          userAgentPackageName: tamuOsmUserAgentPackageName,
+                          maxNativeZoom: 19,
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: LatLng(p.latitude!, p.longitude!),
+                              width: 42,
+                              height: 46,
+                              alignment: Alignment.topCenter,
+                              child: const Icon(
+                                Icons.location_on,
+                                size: 42,
+                                color: TamuColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        RichAttributionWidget(
+                          attributions: [
+                            TextSourceAttribution('© OpenStreetMap contributors'),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Container(
+                      color: TamuColors.lightGreen,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.all(14),
+                      child: const Text(
+                        'The seller has not added a public pickup location yet.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 13, color: TamuColors.textSecondary),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(farmName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(farmName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,),
+              ),
+              const SizedBox(height: 2),
+          Text(distance,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 12, color: TamuColors.textSecondary)),
         ],
       ),
     );

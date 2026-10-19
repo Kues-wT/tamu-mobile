@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
-import 'add_crop_screen.dart';
-import 'orders_screen.dart';
-import 'sales_report_screen.dart';
-import 'profile_screen.dart';
-import 'notifications_screen.dart';
-import 'requests_screen.dart';
+import 'add_crop_screen.dart' as add_crop;
+import 'orders_screen.dart' as orders;
+import 'sales_report_screen.dart' as reports;
+import 'profile_screen.dart' as profile;
+import 'notifications_screen.dart' as notifications;
+import 'requests_screen.dart' as requests;
 
 /// Farmer dashboard - shows ONLY the logged-in farmer's own crops.
 class FarmerHomeScreen extends StatefulWidget {
@@ -18,7 +18,7 @@ class FarmerHomeScreen extends StatefulWidget {
 
 class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   late Future<List<Product>> _productsFuture;
-    late Future<Badges> _badgesFuture;
+  late Future<Badges> _badgesFuture;
 
   @override
   void initState() {
@@ -48,7 +48,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   Future<void> _openAddCrop() async {
     // The form returns the crop name on success, or null if cancelled.
     final name = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const AddCropScreen()),
+      MaterialPageRoute(builder: (_) => const add_crop.AddCropScreen()),
     );
     if (!mounted || name == null) return;
     await _refresh();
@@ -58,7 +58,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
 
   Future<void> _openEditCrop(Product product) async {
     final name = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => AddCropScreen(existing: product)),
+      MaterialPageRoute(builder: (_) => add_crop.AddCropScreen(existing: product)),
     );
     if (!mounted || name == null) return;
     await _refresh();
@@ -107,7 +107,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   /// so we refresh the dashboard when we come back.
   Future<void> _openOrders() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const OrdersScreen()),
+      MaterialPageRoute(builder: (_) => const orders.OrdersScreen()),
     );
     if (mounted) await _refresh();
   }
@@ -116,7 +116,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   /// farmer name, so refresh when we come back.
   Future<void> _openProfile() async {
     final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+      MaterialPageRoute(builder: (_) => const profile.ProfileScreen()),
     );
     if (mounted && changed == true) await _refresh();
   }
@@ -197,7 +197,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   }
 
 
-    /// FR8: header icons with live red count badges.
+  /// FR8: header icons with live red count badges.
   Widget _buildHeaderIcons() {
     return FutureBuilder<Badges>(
       future: _badgesFuture,
@@ -228,7 +228,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
               tooltip: 'Sales Report',
               visualDensity: VisualDensity.compact,
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SalesReportScreen()),
+                MaterialPageRoute(builder: (_) => const reports.SalesReportScreen()),
               ),
               icon: const Icon(Icons.bar_chart, color: Colors.white),
             ),
@@ -288,7 +288,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
 
   Future<void> _openNotifications() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+      MaterialPageRoute(builder: (_) => const notifications.NotificationsScreen()),
     );
     if (mounted) {
       setState(() {
@@ -299,7 +299,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
 
   Future<void> _openRequests() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const RequestsScreen()),
+      MaterialPageRoute(builder: (_) => const requests.RequestsScreen()),
     );
     if (mounted) {
       setState(() {
@@ -375,7 +375,7 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     );
   }
 
-   Widget _summaryCard(String label, String value, IconData icon, Color color) {
+  Widget _summaryCard(String label, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(

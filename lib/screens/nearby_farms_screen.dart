@@ -1,13 +1,13 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../map_config.dart';
 
-/// FR3 Geolocation - nearby farms with a proximity map.
-///
-/// The map is drawn with CustomPaint from the farm coordinates, so the
-/// app needs no map-tile provider and works offline. Each pin is placed
-/// by projecting its latitude/longitude onto the visible bounding box.
+/// FR3 Geolocation - nearby farms shown on real OpenStreetMap tiles.
+/// Farm pins and the buyer's search radius use latitude/longitude values
+/// returned by the FastAPI backend.
 class NearbyFarmsScreen extends StatefulWidget {
   const NearbyFarmsScreen({super.key});
 
@@ -18,6 +18,8 @@ class NearbyFarmsScreen extends StatefulWidget {
 class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
   late Future<List<NearbyFarm>> _farmsFuture;
   double _radius = 10;
+  final MapController _mapController = MapController();
+  bool _mapReady = false;
 
   static const _radiusOptions = [2.0, 5.0, 10.0, 25.0];
 
@@ -44,6 +46,75 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
     setState(_load);
     await _farmsFuture;
   }
+
+  double _zoomForRadius(double radius) => switch (radius) {
+        <= 2 => 13.5,
+        <= 5 => 12.5,
+        <= 10 => 11.5,
+        _ => 10.3,
+      };
+
+  void _selectRadius(double radius) {
+    setState(() {
+      _radius = radius;
+      _load();
+    });
+
+    if (_mapReady) {
+      _mapController.move(
+        LatLng(_refLat, _refLng),
+        _zoomForRadius(radius),
+      );
+    }
+  }
+
+  List<Marker> _markersFor(List<NearbyFarm> farms) {
+    return [
+      Marker(
+        point: LatLng(_refLat, _refLng),
+        width: 42,
+        height: 42,
+        child: Container(
+          decoration: BoxDecoration(
+            color: TamuColors.info,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 5),
+            ],
+          ),
+          child: const Icon(Icons.my_location, size: 19, color: Colors.white),
+        ),
+      ),
+      for (final farm in farms)
+        Marker(
+          point: LatLng(farm.latitude, farm.longitude),
+          width: 44,
+          height: 48,
+          alignment: Alignment.topCenter,
+          child: Tooltip(
+            message: farm.farmName ?? farm.farmerName,
+            child: const Icon(
+              Icons.location_on,
+              size: 42,
+              color: TamuColors.primary,
+              shadows: [Shadow(color: Colors.black26, blurRadius: 3)],
+            ),
+          ),
+        ),
+    ];
+  }
+
+  List<CircleMarker> _radiusCircle() => [
+        CircleMarker(
+          point: LatLng(_refLat, _refLng),
+          radius: _radius * 1000,
+          useRadiusInMeter: true,
+          color: TamuColors.secondary.withValues(alpha: 0.12),
+          borderColor: TamuColors.primary,
+          borderStrokeWidth: 1.5,
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -182,12 +253,7 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
                     color: _radius == r
                         ? TamuColors.primary
                         : TamuColors.border),
-                onSelected: (_) {
-                  setState(() {
-                    _radius = r;
-                    _load();
-                  });
-                },
+                onSelected: (_) => _selectRadius(r),
               ),
             ),
         ],
@@ -197,21 +263,36 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
 
   Widget _buildMap(List<NearbyFarm> farms) {
     return Container(
-      height: 240,
+      height: 280,
       decoration: BoxDecoration(
         color: const Color(0xFFEFF5EC),
         borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
         border: Border.all(color: TamuColors.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: CustomPaint(
-        painter: _MapPainter(
-          farms: farms,
-          refLat: _refLat,
-          refLng: _refLng,
-          radiusKm: _radius,
+      child: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: LatLng(_refLat, _refLng),
+          initialZoom: _zoomForRadius(_radius),
+          minZoom: 8,
+          maxZoom: 18,
+          onMapReady: () => _mapReady = true,
         ),
-        child: const SizedBox.expand(),
+        children: [
+          TileLayer(
+            urlTemplate: tamuOsmTileUrl,
+            userAgentPackageName: tamuOsmUserAgentPackageName,
+            maxNativeZoom: 19,
+          ),
+          CircleLayer(circles: _radiusCircle()),
+          MarkerLayer(markers: _markersFor(farms)),
+          RichAttributionWidget(
+            attributions: [
+              TextSourceAttribution('© OpenStreetMap contributors'),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -305,120 +386,4 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
       ],
     );
   }
-}
-
-/// Draws the proximity map: concentric range rings, the buyer at the
-/// centre, and a pin for each farm positioned by its real coordinates.
-class _MapPainter extends CustomPainter {
-  final List<NearbyFarm> farms;
-  final double refLat;
-  final double refLng;
-  final double radiusKm;
-
-  _MapPainter({
-    required this.farms,
-    required this.refLat,
-    required this.refLng,
-    required this.radiusKm,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final centre = Offset(size.width / 2, size.height / 2);
-    // Leave a margin so pins at max radius stay inside the box.
-    final maxPixelRadius = math.min(size.width, size.height) / 2 - 26;
-    final pxPerKm = maxPixelRadius / radiusKm;
-
-    // --- grid ---
-    final grid = Paint()
-      ..color = const Color(0xFFD7E4D0)
-      ..strokeWidth = 1;
-    for (double x = 0; x < size.width; x += 28) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
-    }
-    for (double y = 0; y < size.height; y += 28) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
-    }
-
-    // --- range rings ---
-    final ring = Paint()
-      ..color = TamuColors.secondary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    for (int i = 1; i <= 3; i++) {
-      final km = radiusKm * i / 3;
-      canvas.drawCircle(centre, km * pxPerKm, ring);
-      _label(canvas, '${km.toStringAsFixed(km < 10 ? 1 : 0)} km',
-          Offset(centre.dx + km * pxPerKm - 18, centre.dy - 14),
-          10, TamuColors.textSecondary);
-    }
-
-    // --- centre marker (you) ---
-    canvas.drawCircle(centre, 7, Paint()..color = TamuColors.info);
-    canvas.drawCircle(
-        centre,
-        7,
-        Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2);
-    _label(canvas, 'You', Offset(centre.dx - 10, centre.dy + 10), 11,
-        TamuColors.info, bold: true);
-
-    // --- farm pins ---
-    // 1 degree of latitude is about 111 km. Longitude shrinks by cos(lat).
-    const kmPerDegLat = 111.0;
-    final kmPerDegLng = 111.0 * math.cos(refLat * math.pi / 180);
-
-    for (final f in farms) {
-      final dxKm = (f.longitude - refLng) * kmPerDegLng;
-      final dyKm = (f.latitude - refLat) * kmPerDegLat;
-
-      final pos = Offset(
-        centre.dx + dxKm * pxPerKm,
-        centre.dy - dyKm * pxPerKm, // north is up
-      );
-
-      // Connector line
-      canvas.drawLine(
-          centre,
-          pos,
-          Paint()
-            ..color = TamuColors.secondary.withValues(alpha: 0.5)
-            ..strokeWidth = 1);
-
-      canvas.drawCircle(pos, 8, Paint()..color = TamuColors.primary);
-      canvas.drawCircle(
-          pos,
-          8,
-          Paint()
-            ..color = Colors.white
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2);
-
-      final name = f.farmName ?? f.farmerName;
-      _label(canvas, name, Offset(pos.dx - 24, pos.dy + 11), 10,
-          TamuColors.textPrimary, bold: true);
-    }
-  }
-
-  void _label(Canvas canvas, String text, Offset at, double size, Color color,
-      {bool bold = false}) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          fontSize: size,
-          color: color,
-          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, at);
-  }
-
-  @override
-  bool shouldRepaint(covariant _MapPainter old) =>
-      old.farms != farms || old.radiusKm != radiusKm;
 }

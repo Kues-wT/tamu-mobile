@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
-import 'login_screen.dart';
+import 'login_screen.dart' as login;
+import 'orders_screen.dart' as orders;
+import 'requests_screen.dart' as requests;
+import 'notifications_screen.dart' as notifications;
 
 /// Profile screen (part of FR1 User Management).
-/// View details, edit name and phone, change password, logout.
+/// Buyers get the Figma-style account page; farmer profile/location tools remain available.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -45,40 +48,135 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = ApiService.currentUser!;
     final nameCtrl = TextEditingController(text: user.fullName);
     final phoneCtrl = TextEditingController(text: user.phone ?? '');
+    final addressCtrl = TextEditingController(text: user.address ?? '');
+    final latitudeCtrl =
+        TextEditingController(text: user.latitude?.toString() ?? '');
+    final longitudeCtrl =
+        TextEditingController(text: user.longitude?.toString() ?? '');
     final formKey = GlobalKey<FormState>();
+
+    String? validateCoordinate(
+        String? value, String label, String otherValue, double min, double max) {
+      final raw = (value ?? '').trim();
+      final other = otherValue.trim();
+      if (raw.isEmpty && other.isEmpty) return null;
+      if (raw.isEmpty) return 'Enter $label too';
+      final number = double.tryParse(raw);
+      if (number == null) return 'Numbers only';
+      if (number < min || number > max) return 'Use $min to $max';
+      return null;
+    }
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Edit Profile'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: nameCtrl,
-                style: const TextStyle(fontSize: 16),
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person_outline),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameCtrl,
+                  style: const TextStyle(fontSize: 16),
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Please enter your name'
+                      : null,
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Please enter your name'
-                    : null,
-              ),
-              const SizedBox(height: TamuSizes.gap),
-              TextFormField(
-                controller: phoneCtrl,
-                keyboardType: TextInputType.phone,
-                style: const TextStyle(fontSize: 16),
-                decoration: const InputDecoration(
-                  labelText: 'Phone (optional)',
-                  prefixIcon: Icon(Icons.phone_outlined),
+                const SizedBox(height: TamuSizes.gap),
+                TextFormField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(fontSize: 16),
+                  decoration: const InputDecoration(
+                    labelText: 'Phone (optional)',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
                 ),
-              ),
-            ],
+                if (user.isBuyer) ...[
+                  const SizedBox(height: TamuSizes.gap),
+                  TextFormField(
+                    controller: addressCtrl,
+                    minLines: 1,
+                    maxLines: 2,
+                    style: const TextStyle(fontSize: 16),
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Delivery address / village',
+                      hintText: 'e.g. Pekan Tamparuli, Sabah',
+                      prefixIcon: Icon(Icons.location_on_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: EdgeInsets.zero,
+                    title: const Text('Map pin (optional)',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                      user.hasLocation
+                          ? 'Used to estimate nearby farms'
+                          : 'Leave blank to use Tamparuli town',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: latitudeCtrl,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true, signed: true),
+                              style: const TextStyle(fontSize: 14),
+                              decoration: const InputDecoration(
+                                labelText: 'Latitude',
+                                hintText: '6.1447',
+                              ),
+                              validator: (v) => validateCoordinate(
+                                v,
+                                'latitude',
+                                longitudeCtrl.text,
+                                -90,
+                                90,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: longitudeCtrl,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true, signed: true),
+                              style: const TextStyle(fontSize: 14),
+                              decoration: const InputDecoration(
+                                labelText: 'Longitude',
+                                hintText: '116.2757',
+                              ),
+                              validator: (v) => validateCoordinate(
+                                v,
+                                'longitude',
+                                latitudeCtrl.text,
+                                -180,
+                                180,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         actions: [
@@ -98,12 +196,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (saved != true) return;
+    if (saved != true) {
+      nameCtrl.dispose();
+      phoneCtrl.dispose();
+      addressCtrl.dispose();
+      latitudeCtrl.dispose();
+      longitudeCtrl.dispose();
+      return;
+    }
 
     try {
       await ApiService.updateProfile(
         fullName: nameCtrl.text.trim(),
         phone: phoneCtrl.text.trim(),
+        address: user.isBuyer ? addressCtrl.text.trim() : null,
+        latitude: user.isBuyer
+            ? double.tryParse(latitudeCtrl.text.trim())
+            : null,
+        longitude: user.isBuyer
+            ? double.tryParse(longitudeCtrl.text.trim())
+            : null,
       );
       if (!mounted) return;
       _changed = true;
@@ -112,6 +224,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
+    } finally {
+      nameCtrl.dispose();
+      phoneCtrl.dispose();
+      addressCtrl.dispose();
+      latitudeCtrl.dispose();
+      longitudeCtrl.dispose();
     }
   }
 
@@ -225,7 +343,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(user.isFarmer ? 'Farm Location' : 'My Location'),
+        title: Text(
+          user.isFarmer ? 'Public Selling / Pickup Point' : 'My Location',
+        ),
         content: SingleChildScrollView(
           child: Form(
             key: formKey,
@@ -249,9 +369,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: addrCtrl,
                   style: const TextStyle(fontSize: 16),
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Address / Village',
-                    hintText: 'e.g. Kg. Sayap, Tamparuli',
+                    hintText: user.isFarmer
+                      ? 'e.g. Tamparuli Market public stall'
+                      : 'e.g. Kg. Sayap, Tamparuli',
                     prefixIcon: Icon(Icons.home_outlined),
                   ),
                 ),
@@ -306,12 +428,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: TamuColors.lightGreen,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'How to find your coordinates:\n'
-                    '1. Open Google Maps and find your farm\n'
-                    '2. Press and hold on the exact spot\n'
-                    '3. The numbers shown are latitude, longitude',
-                    style: TextStyle(fontSize: 13),
+                  child: Text(
+                    user.isFarmer
+                        ? 'Buyers can see this point as your public selling / pickup location. '
+                            'Choose a market or meeting point; do not use your private home address unless you intend to share it.\n\n'
+                            'To find its coordinates, open Google Maps, press and hold on the public point, then copy the latitude and longitude.'
+                        : 'To find your coordinates, open Google Maps, press and hold on your location, then copy the latitude and longitude.',
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ),
               ],
@@ -380,7 +503,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     ApiService.logout();
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      MaterialPageRoute(builder: (_) => const login.LoginScreen()),
       (route) => false,
     );
   }
@@ -390,6 +513,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ApiService.currentUser;
+    final isBuyer = user?.isBuyer ?? false;
 
     return PopScope(
       canPop: false,
@@ -398,38 +522,381 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
       child: Scaffold(
         backgroundColor: TamuColors.background,
-        appBar: AppBar(title: const Text('My Profile')),
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 430),
-              child: user == null
-                  ? const Center(child: Text('Not logged in'))
-                  : RefreshIndicator(
-                      onRefresh: _refresh,
-                      child: ListView(
-                        padding: const EdgeInsets.all(TamuSizes.pagePadding),
-                        children: [
-                          _buildHeaderCard(user),
-                          const SizedBox(height: 16),
-                          _buildStats(),
-                          const SizedBox(height: 16),
-                          _buildDetails(user),
-                          const SizedBox(height: 16),
-                          _buildLocationCard(user),
-                          const SizedBox(height: 16),
-                          _buildActions(),
-                          const SizedBox(height: 24),
-                          const Center(
-                            child: Text('TAMU  ·  Tamparuli, Sabah',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    color: TamuColors.textSecondary)),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
+        appBar: isBuyer ? null : AppBar(title: const Text('My Profile')),
+        body: user == null
+            ? const SafeArea(child: Center(child: Text('Not logged in')))
+            : (isBuyer ? _buildBuyerProfile(user) : _buildFarmerProfile(user)),
+        bottomNavigationBar: isBuyer ? _buildBuyerBottomNav() : null,
+      ),
+    );
+  }
+
+  /// Buyer profile layout follows the supplied Figma reference while keeping
+  /// the existing profile, password, notification, and logout actions.
+  Widget _buildBuyerProfile(AppUser user) {
+    return SafeArea(
+      bottom: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('Profile',
+                        style: TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.w600)),
+                    SizedBox(height: 2),
+                    Text('Buyer account',
+                        style: TextStyle(
+                            fontSize: 12, color: TamuColors.textSecondary)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+                  children: [
+                    _buildBuyerIdentity(user),
+                    const SizedBox(height: 22),
+                    _buildBuyerSettingsCard(),
+                    const SizedBox(height: 12),
+                    _buildRoleNote(),
+                    const SizedBox(height: 12),
+                    _buildBuyerSignOutButton(),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBuyerIdentity(AppUser user) {
+    final phone = (user.phone == null || user.phone!.trim().isEmpty)
+        ? 'Phone number not added'
+        : user.phone!;
+    final sampleEmails = {
+      'siti@tamu.my',
+      'jumat@tamu.my',
+      'gundoh@tamu.my',
+      'aina@tamu.my',
+    };
+    final isSampleAccount = sampleEmails.contains(user.email.toLowerCase());
+
+    return Column(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: const BoxDecoration(
+            color: Color(0xFFD9EEDC),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.person_outline,
+              size: 36, color: TamuColors.primary),
+        ),
+        const SizedBox(height: 10),
+        Text(user.fullName,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 3),
+        Text(phone,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, color: TamuColors.textSecondary)),
+        if (isSampleAccount) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: TamuColors.border),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text('SAMPLE DATA',
+                style: TextStyle(
+                    fontSize: 9,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.bold,
+                    color: TamuColors.textSecondary)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildBuyerSettingsCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: TamuColors.border),
+      ),
+      child: Column(
+        children: [
+          _profileActionRow(
+            icon: Icons.edit_outlined,
+            title: 'Edit profile',
+            subtitle: 'Name, phone and delivery address',
+            onTap: _editProfile,
+          ),
+          const Divider(height: 1, indent: 46),
+          _profileActionRow(
+            icon: Icons.lock_outline,
+            title: 'Change password',
+            subtitle: 'Keep your account secure',
+            onTap: _changePassword,
+          ),
+          const Divider(height: 1, indent: 46),
+          _profileActionRow(
+            icon: Icons.notifications_none,
+            title: 'Notifications',
+            subtitle: 'Orders, requests and updates',
+            onTap: _openNotifications,
+          ),
+          const Divider(height: 1, indent: 46),
+          _profileActionRow(
+            icon: Icons.chat_bubble_outline,
+            title: 'Project notes',
+            subtitle: 'Flow map and questions to confirm',
+            onTap: _showProjectNotes,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _profileActionRow({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 28,
+              child: Icon(icon, color: TamuColors.primary, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 12, color: TamuColors.textSecondary)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 5),
+            const Icon(Icons.chevron_right,
+                size: 21, color: TamuColors.textPrimary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleNote() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF1ED),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.lock_outline, size: 18, color: TamuColors.primary),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Your role is fixed',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: TamuColors.textSecondary)),
+                SizedBox(height: 3),
+                Text(
+                  'A regular user cannot change roles or access another account.',
+                  style: TextStyle(
+                      fontSize: 11, color: TamuColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuyerSignOutButton() {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: _logout,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 54,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: TamuColors.border),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.logout, size: 19, color: TamuColors.primary),
+              SizedBox(width: 8),
+              Text('Sign out',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: TamuColors.primary)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const notifications.NotificationsScreen()),
+    );
+  }
+
+  Future<void> _showProjectNotes() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('About TAMU'),
+        content: const Text(
+          'TAMU connects smallholder farmers and buyers around Tamparuli. '
+          'This demonstration uses local sample listings and a local development database.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuyerBottomNav() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 58,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: TamuColors.border)),
+        ),
+        child: Row(
+          children: [
+            _buyerNavItem(Icons.storefront_outlined, 'Market', false, () {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }),
+            _buyerNavItem(Icons.receipt_long_outlined, 'Orders', false, () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const orders.OrdersScreen()),
+              );
+            }),
+            _buyerNavItem(Icons.forum_outlined, 'Requests', false, () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const requests.RequestsScreen()),
+              );
+            }),
+            _buyerNavItem(Icons.person_outline, 'Profile', true, () {}),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buyerNavItem(
+      IconData icon, String label, bool selected, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Container(
+              width: 22,
+              height: 2,
+              decoration: BoxDecoration(
+                color: selected ? TamuColors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Icon(icon,
+                size: 19,
+                color: selected ? TamuColors.primary : TamuColors.textSecondary),
+            const SizedBox(height: 1),
+            Text(label,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? TamuColors.primary : TamuColors.textSecondary,
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFarmerProfile(AppUser user) {
+    return SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430),
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView(
+              padding: const EdgeInsets.all(TamuSizes.pagePadding),
+              children: [
+                _buildHeaderCard(user),
+                const SizedBox(height: 16),
+                _buildStats(),
+                const SizedBox(height: 16),
+                _buildDetails(user),
+                const SizedBox(height: 16),
+                _buildLocationCard(user),
+                const SizedBox(height: 16),
+                _buildActions(),
+                const SizedBox(height: 24),
+                const Center(
+                  child: Text('TAMU  ·  Tamparuli, Sabah',
+                      style: TextStyle(
+                          fontSize: 13, color: TamuColors.textSecondary)),
+                ),
+                const SizedBox(height: 16),
+              ],
             ),
           ),
         ),
@@ -634,7 +1101,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   size: 20,
                   color: has ? TamuColors.primary : TamuColors.warning),
               const SizedBox(width: 8),
-              Text(user.isFarmer ? 'Farm Location' : 'My Location',
+              Text(
+                  user.isFarmer ? 'Public Pickup Point' : 'My Location',
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w600)),
               const Spacer(),
@@ -649,7 +1117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (!has)
             Text(
               user.isFarmer
-                  ? 'Buyers cannot see how far away your farm is until you set a location.'
+                  ? 'Set a public market or pickup point for buyers. Do not use a private home address unless you choose to share it.'
                   : 'Set your location to see how far each farm is from you.',
               style: const TextStyle(
                   fontSize: 14, color: TamuColors.textSecondary),

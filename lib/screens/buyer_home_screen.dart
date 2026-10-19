@@ -114,6 +114,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     return Scaffold(
       backgroundColor: TamuColors.background,
       body: SafeArea(
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
@@ -128,53 +129,89 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
+                          return ListView(
+                            children: const [
+                              SizedBox(height: 120),
+                              Center(child: CircularProgressIndicator()),
+                            ],
                           );
                         }
                         if (snapshot.hasError) {
                           return _buildError(snapshot.error.toString());
                         }
                         final products = _filter(snapshot.data ?? []);
-                        if (products.isEmpty) {
-                          return ListView(
-                            children: const [
-                              SizedBox(height: 80),
-                              Center(
-                                child: Text(
-                                  'No produce found.',
-                                  style: TextStyle(fontSize: 16),
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.zero,
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.fromLTRB(16, 15, 16, 8),
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(20),
                                 ),
                               ),
-                              SizedBox(height: 6),
-                              Center(
-                                child: Text(
-                                  'Try widening the distance filter.',
-                                  style: TextStyle(
-                                      fontSize: 14,
-                                      color: TamuColors.textSecondary),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Expanded(
+                                        child: Text('Browse crops',
+                                            style: TextStyle(
+                                                fontSize: 17,
+                                                fontWeight: FontWeight.w600)),
+                                      ),
+                                      _sampleDataBadge(),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Illustrative listings near Tamparuli',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: TamuColors.textSecondary),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _buildCategoryChips(),
+                                  const SizedBox(height: 10),
+                                  _buildExploreFarmsCard(),
+                                ],
+                              ),
+                            ),
+                            if (products.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 30),
+                                child: Center(
+                                  child: Text(
+                                    'No produce found. Try another search or category.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        color: TamuColors.textSecondary),
+                                  ),
+                                ),
+                              )
+                            else
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                                child: Column(
+                                  children: products
+                                      .map((product) => Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 9),
+                                            child: _ProductCard(
+                                              product: product,
+                                              onTap: () => _openProduct(product),
+                                            ),
+                                          ))
+                                      .toList(),
                                 ),
                               ),
-                            ],
-                          );
-                        }
-                        return GridView.builder(
-                          padding: const EdgeInsets.all(TamuSizes.pagePadding),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: TamuSizes.gap,
-                            mainAxisSpacing: TamuSizes.gap,
-                            childAspectRatio: 0.78,
-                          ),
-                          itemCount: products.length,
-                          itemBuilder: (context, i) {
-                            final product = products[i];
-                            return _ProductCard(
-                              product: product,
-                              onTap: () => _openProduct(product),
-                            );
-                          },
+                          ],
                         );
                       },
                     ),
@@ -185,93 +222,60 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: _buildBuyerBottomNav(),
     );
   }
 
-    /// FR8: header icons with live red count badges.
+
+  /// Figma-style notification button with an unread badge.
   Widget _buildHeaderIcons() {
     return FutureBuilder<Badges>(
       future: _badgesFuture,
       builder: (context, snap) {
-        final bg = snap.data ?? const Badges();
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _badgeIcon(
-              icon: Icons.notifications_outlined,
-              tooltip: 'Notifications',
-              count: bg.unreadNotifications,
-              onPressed: _openNotifications,
+        final unread = snap.data?.unreadNotifications ?? 0;
+        return InkWell(
+          onTap: _openNotifications,
+          borderRadius: BorderRadius.circular(28),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white24),
             ),
-            _badgeIcon(
-              icon: Icons.campaign_outlined,
-              tooltip: 'Crop Requests',
-              count: bg.openRequests,
-              onPressed: _openRequests,
-            ),
-            _badgeIcon(
-              icon: Icons.receipt_long_outlined,
-              tooltip: 'My Orders',
-              count: bg.pendingOrders,
-              onPressed: _openOrders,
-            ),
-            IconButton(
-              tooltip: 'Nearby Farms',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openNearbyFarms,
-              icon: const Icon(Icons.map_outlined, color: Colors.white),
-            ),
-            IconButton(
-              tooltip: 'My Profile',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openProfile,
-              icon: const Icon(Icons.person_outline, color: Colors.white),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Reusable header icon with an optional red count badge.
-  Widget _badgeIcon({
-    required IconData icon,
-    required String tooltip,
-    required int count,
-    required VoidCallback onPressed,
-  }) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        IconButton(
-          tooltip: tooltip,
-          onPressed: onPressed,
-          visualDensity: VisualDensity.compact,
-          icon: Icon(icon, color: Colors.white),
-        ),
-        if (count > 0)
-          Positioned(
-            right: 2,
-            top: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
-              decoration: BoxDecoration(
-                color: TamuColors.danger,
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: Colors.white, width: 1.5),
-              ),
-              child: Text(
-                count > 9 ? '9+' : '$count',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
-              ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(Icons.notifications_none,
+                    color: Colors.white, size: 23),
+                if (unread > 0)
+                  Positioned(
+                    right: 1,
+                    top: 0,
+                    child: Container(
+                      constraints:
+                          const BoxConstraints(minWidth: 16, minHeight: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: TamuColors.warning,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Text(
+                        unread > 9 ? '9+' : '$unread',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: TamuColors.darkGreen),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-      ],
+        );
+      },
     );
   }
 
@@ -300,140 +304,83 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      decoration: const BoxDecoration(
-        color: TamuColors.primary,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-      ),
+      padding: const EdgeInsets.fromLTRB(18, 13, 18, 18),
+      color: TamuColors.darkGreen,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('🌿', style: TextStyle(fontSize: 26)),
-              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'TAMU',
+                      'TAMU TAMPARULI AREA',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: 10,
+                        letterSpacing: 1.1,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: TamuColors.secondary,
                       ),
                     ),
-                    Text(
-                      '📍 Tamparuli  ·  ${ApiService.currentUser?.fullName ?? ""}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFFA5D6A7),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Fresh nearby',
+                      style: TextStyle(
+                        fontSize: 25,
+                        height: 1.1,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
                     ),
                   ],
                 ),
               ),
-            _buildHeaderIcons(),
+              _buildHeaderIcons(),
             ],
           ),
-          const SizedBox(height: 8),
-          TextField(
-            onChanged: (v) => setState(() {
-              _search = v;
-            }),
-            style: const TextStyle(fontSize: 16),
-            decoration: const InputDecoration(
-              hintText: 'Search fresh produce...',
-              prefixIcon: Icon(Icons.search),
-              isDense: true,
+          const SizedBox(height: 14),
+          Container(
+            height: 48,
+            padding: const EdgeInsets.only(left: 12, right: 5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(13),
             ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.near_me_outlined,
-                  size: 17, color: Colors.white.withValues(alpha: 0.9)),
-              const SizedBox(width: 6),
-              Text(
-                _nearbyOnly
-                    ? 'Within ${_radiusKm.toStringAsFixed(0)} km'
-                    : 'All distances',
-                style: const TextStyle(fontSize: 13, color: Colors.white),
-              ),
-              if (_nearbyOnly) ...[
+            child: Row(
+              children: [
+                const Icon(Icons.search, color: TamuColors.textSecondary),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: Colors.white,
-                      inactiveTrackColor: Colors.white30,
-                      thumbColor: Colors.white,
-                      overlayColor: Colors.white24,
-                      trackHeight: 3,
-                    ),
-                    child: Slider(
-                      value: _radiusKm,
-                      min: 1,
-                      max: 30,
-                      divisions: 29,
-                      onChanged: (v) => setState(() {
-                        _radiusKm = v;
-                      }),
-                      onChangeEnd: (_) => _refresh(),
+                  child: TextField(
+                    onChanged: (value) => setState(() => _search = value),
+                    style: const TextStyle(fontSize: 14),
+                    decoration: const InputDecoration(
+                      hintText: 'Search Pak Choy, Tuhau...',
+                      border: InputBorder.none,
+                      filled: false,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
                     ),
                   ),
                 ),
-              ] else
-                const Spacer(),
-              Switch(
-                value: _nearbyOnly,
-                activeThumbColor: Colors.white,
-                activeTrackColor: const Color(0xFF81C784),
-                inactiveThumbColor: Colors.white70,
-                inactiveTrackColor: Colors.white24,
-                onChanged: (v) {
-                  setState(() {
-                    _nearbyOnly = v;
-                  });
-                  _refresh();
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 38,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _categories.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                final c = _categories[i];
-                final selected = _category == c;
-                return ChoiceChip(
-                  label: Text(
-                    c == 'All' ? 'All' : '${_emoji(c)} ${_label(c)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: selected
-                          ? TamuColors.primary
-                          : TamuColors.textPrimary,
+                TextButton(
+                  onPressed: _openFilterSheet,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(52, 38),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    backgroundColor: TamuColors.lightGreen,
+                    foregroundColor: TamuColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  selected: selected,
-                  showCheckmark: false,
-                  backgroundColor: Colors.white,
-                  selectedColor: Colors.white,
-                  side: BorderSide(
-                    color: selected ? TamuColors.primary : TamuColors.border,
-                    width: selected ? 2 : 1,
-                  ),
-                  onSelected: (_) => setState(() {
-                    _category = c;
-                  }),
-                );
-              },
+                  child: const Text('Filter',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+              ],
             ),
           ),
         ],
@@ -441,19 +388,210 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     );
   }
 
-  static String _emoji(String c) => switch (c) {
-        'vegetable' => '🥬',
-        'fruit' => '🍌',
-        'rice' => '🌾',
-        _ => '',
-      };
+  Future<void> _openFilterSheet() async {
+    var nearbyOnly = _nearbyOnly;
+    var radius = _radiusKm;
+    var applied = false;
 
-  static String _label(String c) => switch (c) {
-        'vegetable' => 'Vegetables',
-        'fruit' => 'Fruits',
-        'rice' => 'Rice',
-        _ => c,
-      };
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Filter nearby produce',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Show farms near me'),
+                  subtitle: const Text('Use your saved location or Tamparuli centre'),
+                  value: nearbyOnly,
+                  onChanged: (value) => setSheetState(() => nearbyOnly = value),
+                ),
+                if (nearbyOnly) ...[
+                  Text('Within ${radius.toStringAsFixed(0)} km',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Slider(
+                    value: radius,
+                    min: 1,
+                    max: 30,
+                    divisions: 29,
+                    label: '${radius.toStringAsFixed(0)} km',
+                    onChanged: (value) => setSheetState(() => radius = value),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    applied = true;
+                    Navigator.of(sheetContext).pop();
+                  },
+                  child: const Text('Apply filters'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (applied && mounted) {
+      setState(() {
+        _nearbyOnly = nearbyOnly;
+        _radiusKm = radius;
+        _productsFuture = _load();
+      });
+    }
+  }
+
+  Widget _buildCategoryChips() {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _categories.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 7),
+        itemBuilder: (context, index) {
+          final category = _categories[index];
+          final selected = _category == category;
+          final label = switch (category) {
+            'All' => 'All',
+            'vegetable' => 'Vegetables',
+            'fruit' => 'Fruits',
+            'rice' => 'Rice',
+            _ => category,
+          };
+          return ChoiceChip(
+            label: Text(label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : TamuColors.textPrimary,
+                )),
+            selected: selected,
+            showCheckmark: false,
+            selectedColor: TamuColors.darkGreen,
+            backgroundColor: Colors.white,
+            side: BorderSide(color: selected ? TamuColors.darkGreen : TamuColors.border),
+            onSelected: (_) => setState(() => _category = category),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _sampleDataBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: TamuColors.secondary),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: const Text('SAMPLE DATA',
+          style: TextStyle(
+              fontSize: 8,
+              letterSpacing: 0.7,
+              fontWeight: FontWeight.bold,
+              color: TamuColors.darkGreen)),
+    );
+  }
+
+  Widget _buildExploreFarmsCard() {
+    return InkWell(
+      onTap: _openNearbyFarms,
+      borderRadius: BorderRadius.circular(13),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: TamuColors.lightGreen,
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.map_outlined, color: TamuColors.primary, size: 20),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Explore nearby farms',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: TamuColors.primary)),
+                  SizedBox(height: 2),
+                  Text('View public pickup points near Tamparuli',
+                      style: TextStyle(
+                          fontSize: 10, color: TamuColors.textSecondary)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: TamuColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBuyerBottomNav() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 58,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: TamuColors.border)),
+        ),
+        child: Row(
+          children: [
+            _buyerNavItem(Icons.storefront_outlined, 'Market', true, () {}),
+            _buyerNavItem(Icons.receipt_long_outlined, 'Orders', false, _openOrders),
+            _buyerNavItem(Icons.forum_outlined, 'Requests', false, _openRequests),
+            _buyerNavItem(Icons.person_outline, 'Profile', false, _openProfile),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buyerNavItem(
+      IconData icon, String label, bool selected, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Container(
+              width: 22,
+              height: 2,
+              decoration: BoxDecoration(
+                color: selected ? TamuColors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Icon(icon, size: 19,
+                color: selected ? TamuColors.primary : TamuColors.textSecondary),
+            const SizedBox(height: 1),
+            Text(label,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? TamuColors.primary : TamuColors.textSecondary,
+                )),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildError(String msg) {
     return ListView(
@@ -493,132 +631,160 @@ class _ProductCard extends StatelessWidget {
 
   const _ProductCard({required this.product, required this.onTap});
 
+  String get _availabilityLabel {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final from = product.availableFrom;
+    final until = product.availableUntil;
+    if (until != null && today.isAfter(DateUtils.dateOnly(until))) {
+      return 'Ended';
+    }
+    if (from != null && today.isBefore(DateUtils.dateOnly(from))) {
+      return 'Upcoming';
+    }
+    if (product.isOutOfStock) return 'Unavailable';
+    return 'Available';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-      child: Container(
-        decoration: BoxDecoration(
-          color: TamuColors.surface,
-          borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-          border: Border.all(color: TamuColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 90,
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: TamuColors.lightGreen,
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(TamuSizes.cardRadius),
-                ),
+    final isAvailable = _availabilityLabel == 'Available';
+    final imageEmoji = switch (product.category) {
+      'vegetable' => '🥬',
+      'fruit' => '🍌',
+      'rice' => '🌾',
+      'herb' => '🌿',
+      _ => '🌱',
+    };
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(15),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: TamuColors.border),
+          ),
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  Container(
+                    width: 82,
+                    height: 82,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: TamuColors.lightGreen,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Text(imageEmoji, style: const TextStyle(fontSize: 37)),
+                  ),
+                  if (product.hasArModel)
+                    Positioned(
+                      left: 4,
+                      top: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: const Text('3D / AR',
+                            style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                color: TamuColors.darkGreen)),
+                      ),
+                    ),
+                ],
               ),
-              child: Center(
-                child: Text(
-                  switch (product.category) {
-                    'vegetable' => '🥬',
-                    'fruit' => '🍌',
-                    'rice' => '🌾',
-                    'herb' => '🌿',
-                    _ => '🌱',
-                  },
-                  style: const TextStyle(fontSize: 40),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
+              const SizedBox(width: 10),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      product.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      product.farmName ?? product.farmerName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: TamuColors.textSecondary,
-                      ),
-                    ),
-                    if (product.distanceKm != null)
-                      Row(
-                        children: [
-                          const Icon(Icons.near_me,
-                              size: 12, color: TamuColors.info),
-                          const SizedBox(width: 3),
-                          Text(
-                            '${product.distanceKm!.toStringAsFixed(1)} km away',
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: TamuColors.info),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: TamuColors.textPrimary),
                           ),
-                        ],
-                      ),
-                    const Spacer(),
-                    Text(
-                      'RM ${product.pricePerKg.toStringAsFixed(2)} /kg',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: TamuColors.primary,
-                      ),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isAvailable
+                                ? TamuColors.lightGreen
+                                : const Color(0xFFFFF4DE),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            _availabilityLabel,
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                              color: isAvailable
+                                  ? TamuColors.primary
+                                  : TamuColors.warning,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
-                    _stockBadge(),
+                    Text(
+                      'RM ${product.pricePerKg.toStringAsFixed(2)} / kg',
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: TamuColors.primary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${product.stockKg} kg available',
+                      style: const TextStyle(
+                          fontSize: 11, color: TamuColors.textSecondary),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined,
+                            size: 12, color: TamuColors.textSecondary),
+                        const SizedBox(width: 2),
+                        Expanded(
+                          child: Text(
+                            '${product.farmName ?? product.farmerName}'
+                            '${product.distanceKm == null ? '' : ' - ${product.distanceKm!.toStringAsFixed(1)} km'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 10,
+                                color: TamuColors.textSecondary),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 3),
+              const Icon(Icons.chevron_right, color: TamuColors.textSecondary),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _stockBadge() {
-    late final Color bg;
-    late final Color fg;
-    late final String text;
-
-    if (product.isOutOfStock) {
-      bg = const Color(0xFFFFEBEE);
-      fg = TamuColors.danger;
-      text = 'Out of stock';
-    } else if (product.isLowStock) {
-      bg = const Color(0xFFFFF8E1);
-      fg = TamuColors.warning;
-      text = 'Low: ${product.stockKg} kg';
-    } else {
-      bg = TamuColors.lightGreen;
-      fg = TamuColors.primary;
-      text = '${product.stockKg} kg available';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: fg),
       ),
     );
   }

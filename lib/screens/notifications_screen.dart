@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
-import 'orders_screen.dart';
-import 'requests_screen.dart';
+import 'orders_screen.dart' as orders;
+import 'requests_screen.dart' as requests;
 
 /// FR8 - Notification Management.
 /// Alerts are generated server-side when orders change state or crop
@@ -67,8 +67,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _open(AppNotification n) async {
     final target = switch (n.refType) {
-      'order' => const OrdersScreen(),
-      'request' => const RequestsScreen(),
+      'order' => const orders.OrdersScreen(),
+      'request' => const requests.RequestsScreen(),
       _ => null,
     };
     if (target == null) {

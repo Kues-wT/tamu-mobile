@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import 'orders_screen.dart' as orders;
+import 'profile_screen.dart' as profile;
+import 'notifications_screen.dart' as notifications;
 
 /// FR6 - Crop Request Board.
 /// Buyers post requests for produce nobody has listed; farmers browse
@@ -316,20 +319,28 @@ class _RequestsScreenState extends State<RequestsScreen> {
     }
   }
 
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const notifications.NotificationsScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: TamuColors.background,
-      appBar: AppBar(
-        title: const Text('Crop Requests'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      appBar: _isBuyer
+          ? null
+          : AppBar(
+              title: const Text('Buyer Requests'),
+              actions: [
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: _refresh,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
       floatingActionButton: _isBuyer
           ? FloatingActionButton.extended(
               onPressed: _newRequest,
@@ -340,11 +351,14 @@ class _RequestsScreenState extends State<RequestsScreen> {
             )
           : null,
       body: SafeArea(
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
             child: Column(
               children: [
+                if (_isBuyer) _buildBuyerHeader(),
+                if (_isFarmer) _buildFirstAcceptanceNote(),
                 _buildFilterBar(),
                 Expanded(
                   child: RefreshIndicator(
@@ -364,7 +378,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         if (items.isEmpty) return _buildEmpty();
 
                         return ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                           itemCount: items.length,
                           itemBuilder: (context, i) => _buildCard(items[i]),
                         );
@@ -375,6 +390,126 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ],
             ),
           ),
+        ),
+      ),
+      bottomNavigationBar: _isBuyer ? _buildBuyerBottomNav() : null,
+    );
+  }
+
+  Widget _buildBuyerHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 10),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Requests',
+                    style: TextStyle(
+                        fontSize: 21, fontWeight: FontWeight.w600)),
+                SizedBox(height: 2),
+                Text('Ask local farmers for produce you need',
+                    style: TextStyle(
+                        fontSize: 12, color: TamuColors.textSecondary)),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Notifications',
+            onPressed: _openNotifications,
+            icon: const Icon(Icons.notifications_none,
+                color: TamuColors.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFirstAcceptanceNote() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: TamuColors.lightGreen,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFC6E2C8)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: TamuColors.primary, size: 19),
+          SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'First valid acceptance wins. Once one farmer accepts, the request closes for everyone else.',
+              style: TextStyle(fontSize: 13, color: TamuColors.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuyerBottomNav() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 58,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: TamuColors.border)),
+        ),
+        child: Row(
+          children: [
+            _buyerNavItem(Icons.storefront_outlined, 'Market', false, () {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }),
+            _buyerNavItem(Icons.receipt_long_outlined, 'Orders', false, () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const orders.OrdersScreen()),
+              );
+            }),
+            _buyerNavItem(Icons.forum_outlined, 'Requests', true, () {}),
+            _buyerNavItem(Icons.person_outline, 'Profile', false, () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const profile.ProfileScreen()),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buyerNavItem(
+      IconData icon, String label, bool selected, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Container(
+              width: 22,
+              height: 2,
+              decoration: BoxDecoration(
+                color: selected ? TamuColors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Icon(icon,
+                size: 19,
+                color: selected ? TamuColors.primary : TamuColors.textSecondary),
+            const SizedBox(height: 1),
+            Text(label,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? TamuColors.primary : TamuColors.textSecondary,
+                )),
+          ],
         ),
       ),
     );

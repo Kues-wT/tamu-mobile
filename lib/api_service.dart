@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 /// Real Android phone on Wi-Fi -> `http://<your-laptop-IP>:8000`
 ///   (find it with `ipconfig`, look for IPv4 Address, e.g. 192.168.0.12)
 /// Android emulator            -> http://10.0.2.2:8000
-const String kBaseUrl = 'http://192.168.0.200:8000';
+const String kBaseUrl = 'http://127.0.0.1:8000';
 
 String? _dateOnlyIso(DateTime? value) {
   if (value == null) return null;

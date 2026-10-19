@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import 'profile_screen.dart' as profile;
+import 'requests_screen.dart' as requests;
+import 'notifications_screen.dart' as notifications;
 
 /// Orders list.
 /// Farmers see orders RECEIVED for their crops, with Accept / Reject.
@@ -93,26 +96,37 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const notifications.NotificationsScreen()),
+    );
+    if (mounted) await _refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: TamuColors.background,
-      appBar: AppBar(
-        title: Text(_isFarmer ? 'Incoming Orders' : 'My Orders'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      appBar: _isFarmer
+          ? AppBar(
+              title: const Text('Incoming Orders'),
+              actions: [
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: _refresh,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            )
+          : null,
       body: SafeArea(
+        bottom: _isFarmer,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
             child: Column(
               children: [
+                if (!_isFarmer) _buildBuyerHeader(),
                 _buildFilterBar(),
                 Expanded(
                   child: RefreshIndicator(
@@ -136,11 +150,22 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
                         if (orders.isEmpty) return _buildEmpty();
 
-                        return ListView.builder(
-                          padding: const EdgeInsets.all(TamuSizes.pagePadding),
-                          itemCount: orders.length,
-                          itemBuilder: (context, i) =>
-                              _buildOrderCard(orders[i]),
+                        if (_isFarmer) {
+                          return ListView.builder(
+                            padding: const EdgeInsets.all(TamuSizes.pagePadding),
+                            itemCount: orders.length,
+                            itemBuilder: (context, i) =>
+                                _buildOrderCard(orders[i]),
+                          );
+                        }
+
+                        return ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                          children: [
+                            ...orders.map(_buildBuyerOrderCard),
+                            const SizedBox(height: 4),
+                            _buildOrderStagesCard(),
+                          ],
                         );
                       },
                     ),
@@ -151,10 +176,192 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: _isFarmer ? null : _buildBuyerBottomNav(),
+    );
+  }
+
+  Widget _buildBuyerHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('My orders',
+                    style: TextStyle(
+                        fontSize: 21, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                const Text('Sample order history',
+                    style: TextStyle(
+                        fontSize: 12, color: TamuColors.textSecondary)),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Notifications',
+            onPressed: _openNotifications,
+            icon: const Icon(Icons.notifications_none,
+                color: TamuColors.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuyerOrderCard(Order order) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: TamuColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '#TAMU-${order.id.toString().padLeft(4, '0')}  ·  ${_formatDate(order.createdAt)}',
+                  style: const TextStyle(
+                      fontSize: 10, color: TamuColors.textSecondary),
+                ),
+              ),
+              _statusBadge(order.status),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${order.productName ?? 'Crop'} · ${order.quantityKg} kg',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            '${order.farmerName ?? 'Farmer'} · RM ${order.totalPrice.toStringAsFixed(2)}',
+            style: const TextStyle(
+                fontSize: 11, color: TamuColors.textSecondary),
+          ),
+          if (order.status == 'completed') ...[
+            const SizedBox(height: 6),
+            const Text('Rate this order',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: TamuColors.primary)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderStagesCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 2),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF1ED),
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Order stages',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Text('Pending', style: TextStyle(fontSize: 10, color: TamuColors.warning)),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(Icons.chevron_right, size: 14, color: TamuColors.textSecondary),
+              ),
+              Text('Confirmed', style: TextStyle(fontSize: 10, color: TamuColors.primary)),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(Icons.chevron_right, size: 14, color: TamuColors.textSecondary),
+              ),
+              Text('Completed', style: TextStyle(fontSize: 10, color: TamuColors.primary)),
+            ],
+          ),
+          SizedBox(height: 5),
+          Text('Orders may also be marked Cancelled.',
+              style: TextStyle(fontSize: 9, color: TamuColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuyerBottomNav() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 58,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: TamuColors.border)),
+        ),
+        child: Row(
+          children: [
+            _buyerNavItem(Icons.storefront_outlined, 'Market', false, () {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }),
+            _buyerNavItem(Icons.receipt_long_outlined, 'Orders', true, () {}),
+            _buyerNavItem(Icons.forum_outlined, 'Requests', false, () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const requests.RequestsScreen()),
+              );
+            }),
+            _buyerNavItem(Icons.person_outline, 'Profile', false, () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const profile.ProfileScreen()),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buyerNavItem(
+      IconData icon, String label, bool selected, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Container(
+              width: 22,
+              height: 2,
+              decoration: BoxDecoration(
+                color: selected ? TamuColors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Icon(icon, size: 19,
+                color: selected ? TamuColors.primary : TamuColors.textSecondary),
+            const SizedBox(height: 1),
+            Text(label,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? TamuColors.primary : TamuColors.textSecondary,
+                )),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildFilterBar() {
+    final filters = _isFarmer
+        ? _filters
+        : const ['all', 'pending', 'completed'];
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
@@ -162,10 +369,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
         height: 40,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          itemCount: _filters.length,
+          itemCount: filters.length,
           separatorBuilder: (_, _) => const SizedBox(width: 8),
           itemBuilder: (context, i) {
-            final f = _filters[i];
+            final f = filters[i];
             final selected = _filter == f;
             return ChoiceChip(
               label: Text(
