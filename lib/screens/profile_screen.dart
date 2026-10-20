@@ -9,7 +9,8 @@ import 'notifications_screen.dart' as notifications;
 import 'location_picker_screen.dart' as location_picker;
 
 /// Profile screen (part of FR1 User Management).
-/// Buyers get the Figma-style account page; farmer profile/location tools remain available.
+/// Buyers and farmers share the Figma-style account page; farmers also get
+/// the public pickup point editor and the ratings card.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -18,21 +19,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late Future<UserStats> _statsFuture;
   bool _changed = false; // tells the previous screen to refresh
-
-  @override
-  void initState() {
-    super.initState();
-    _statsFuture = ApiService.fetchMyStats();
-  }
-
-  Future<void> _refresh() async {
-    setState(() {
-      _statsFuture = ApiService.fetchMyStats();
-    });
-    await _statsFuture;
-  }
 
   void _snack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -548,11 +535,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (!didPop) Navigator.of(context).pop(_changed);
       },
       child: Scaffold(
-        backgroundColor: TamuColors.background,
-        appBar: isBuyer ? null : AppBar(title: const Text('My Profile')),
+        backgroundColor: isFarmer ? TamuColors.warm : TamuColors.background,
         body: user == null
             ? const SafeArea(child: Center(child: Text('Not logged in')))
-            : (isBuyer ? _buildBuyerProfile(user) : _buildFarmerProfile(user)),
+            : _buildAccountProfile(user),
         bottomNavigationBar: isBuyer
             ? _buildBuyerBottomNav()
             : (isFarmer
@@ -567,9 +553,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Buyer profile layout follows the supplied Figma reference while keeping
-  /// the existing profile, password, notification, and logout actions.
-  Widget _buildBuyerProfile(AppUser user) {
+  /// Buyer and farmer profiles share the Figma layout; farmers also get
+  /// their public pickup point row and the ratings card.
+  Widget _buildAccountProfile(AppUser user) {
     return SafeArea(
       bottom: false,
       child: Center(
@@ -582,13 +568,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('Profile',
+                  children: [
+                    const Text('Profile',
                         style: TextStyle(
                             fontSize: 22, fontWeight: FontWeight.w600)),
-                    SizedBox(height: 2),
-                    Text('Buyer account',
-                        style: TextStyle(
+                    const SizedBox(height: 2),
+                    Text(user.isFarmer ? 'Farmer account' : 'Buyer account',
+                        style: const TextStyle(
                             fontSize: 12, color: TamuColors.textSecondary)),
                   ],
                 ),
@@ -599,7 +585,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     _buildBuyerIdentity(user),
                     const SizedBox(height: 22),
-                    _buildBuyerSettingsCard(),
+                    if (user.isFarmer) ...[
+                      _buildFarmerSettingsCard(user),
+                      const SizedBox(height: 12),
+                      _buildRatingEmpty(),
+                    ] else
+                      _buildBuyerSettingsCard(),
                     const SizedBox(height: 12),
                     _buildRoleNote(),
                     const SizedBox(height: 12),
@@ -703,6 +694,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: 'Project notes',
             subtitle: 'Flow map and questions to confirm',
             onTap: _showProjectNotes,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFarmerSettingsCard(AppUser user) {
+    final pickupLabel = !user.hasLocation
+        ? 'Not set yet · choose a public point, not your home'
+        : [user.farmName, user.address]
+            .whereType<String>()
+            .where((s) => s.trim().isNotEmpty)
+            .join(' · ');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: TamuColors.line),
+      ),
+      child: Column(
+        children: [
+          _profileActionRow(
+            icon: Icons.edit_outlined,
+            title: 'Edit profile',
+            subtitle: 'Name and phone',
+            onTap: _editProfile,
+          ),
+          const Divider(height: 1, indent: 46),
+          _profileActionRow(
+            icon: Icons.place_outlined,
+            title: 'Public pickup point',
+            subtitle: pickupLabel.isEmpty ? 'Point set on map' : pickupLabel,
+            onTap: _editLocation,
+          ),
+          const Divider(height: 1, indent: 46),
+          _profileActionRow(
+            icon: Icons.lock_outline,
+            title: 'Change password',
+            subtitle: 'Keep your account secure',
+            onTap: _changePassword,
+          ),
+          const Divider(height: 1, indent: 46),
+          _profileActionRow(
+            icon: Icons.notifications_none,
+            title: 'Notifications',
+            subtitle: 'Orders, requests and updates',
+            onTap: _openNotifications,
+          ),
+          const Divider(height: 1, indent: 46),
+          _profileActionRow(
+            icon: Icons.chat_bubble_outline,
+            title: 'Project notes',
+            subtitle: 'Flow map and questions to confirm',
+            onTap: _showProjectNotes,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Figma ".rating-empty". Ratings (FR9) are not built yet, so this is
+  /// the honest state for every farmer for now.
+  Widget _buildRatingEmpty() {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEDF0EC),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.star_border, size: 28, color: Color(0xFF828B81)),
+          SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('No ratings yet',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: TamuColors.darkGreen)),
+                SizedBox(height: 3),
+                Text(
+                  'Your average and rating count will appear after a buyer '
+                  'rates a completed order.',
+                  style: TextStyle(
+                      fontSize: 11,
+                      height: 1.45,
+                      color: TamuColors.textSecondary),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -904,318 +990,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildFarmerProfile(AppUser user) {
-    return SafeArea(
-      bottom: false,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 430),
-          child: RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView(
-              padding: const EdgeInsets.all(TamuSizes.pagePadding),
-              children: [
-                _buildHeaderCard(user),
-                const SizedBox(height: 16),
-                _buildStats(),
-                const SizedBox(height: 16),
-                _buildDetails(user),
-                const SizedBox(height: 16),
-                _buildLocationCard(user),
-                const SizedBox(height: 16),
-                _buildActions(),
-                const SizedBox(height: 24),
-                const Center(
-                  child: Text('TAMU  ·  Tamparuli, Sabah',
-                      style: TextStyle(
-                          fontSize: 13, color: TamuColors.textSecondary)),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderCard(AppUser user) {
-    final initials = user.fullName
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .take(2)
-        .map((w) => w[0].toUpperCase())
-        .join();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: TamuColors.primary,
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white54, width: 2),
-            ),
-            child: Center(
-              child: Text(
-                initials.isEmpty ? '?' : initials,
-                style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(user.fullName,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white)),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              user.isFarmer ? '🌾  FARMER' : '🛒  BUYER',
-              style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: TamuColors.primary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStats() {
-    return FutureBuilder<UserStats>(
-      future: _statsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 80,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) return const SizedBox.shrink();
-
-        final s = snapshot.data!;
-        final isFarmer = ApiService.currentUser?.isFarmer ?? false;
-
-        return Row(
-          children: [
-            if (isFarmer) ...[
-              Expanded(
-                  child: _statTile('${s.listings}', 'Listings',
-                      Icons.inventory_2_outlined, TamuColors.primary)),
-              const SizedBox(width: TamuSizes.gap),
-              Expanded(
-                  child: _statTile('${s.ordersReceived}', 'Orders Received',
-                      Icons.receipt_long_outlined, TamuColors.info)),
-            ] else ...[
-              Expanded(
-                  child: _statTile('${s.ordersPlaced}', 'Orders Placed',
-                      Icons.shopping_bag_outlined, TamuColors.primary)),
-            ],
-            const SizedBox(width: TamuSizes.gap),
-            Expanded(
-                child: _statTile('${s.completedOrders}', 'Completed',
-                    Icons.check_circle_outline, TamuColors.primary)),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _statTile(String value, String label, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-      decoration: BoxDecoration(
-        color: TamuColors.surface,
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(color: TamuColors.border),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 22, color: color),
-          const SizedBox(height: 6),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold, color: color)),
-          Text(label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 12, color: TamuColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetails(AppUser user) {
-    return Container(
-      decoration: BoxDecoration(
-        color: TamuColors.surface,
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(color: TamuColors.border),
-      ),
-      child: Column(
-        children: [
-          _row(Icons.email_outlined, 'Email', user.email),
-          const Divider(height: 1),
-          _row(Icons.phone_outlined, 'Phone',
-              (user.phone == null || user.phone!.isEmpty) ? 'Not set' : user.phone!),
-          const Divider(height: 1),
-          FutureBuilder<UserStats>(
-            future: _statsFuture,
-            builder: (context, snapshot) {
-              final text = snapshot.hasData
-                  ? _formatDate(snapshot.data!.memberSince)
-                  : '...';
-              return _row(Icons.calendar_today_outlined, 'Member since', text);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _row(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: TamuColors.textSecondary),
-          const SizedBox(width: 12),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 14, color: TamuColors.textSecondary)),
-          const Spacer(),
-          Flexible(
-            child: Text(value,
-                textAlign: TextAlign.right,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationCard(AppUser user) {
-    final has = user.hasLocation;
-    return Container(
-      padding: const EdgeInsets.all(TamuSizes.cardPadding),
-      decoration: BoxDecoration(
-        color: has ? TamuColors.surface : const Color(0xFFFFF8E1),
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(
-            color: has ? TamuColors.border : TamuColors.warning),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(has ? Icons.location_on : Icons.location_off,
-                  size: 20,
-                  color: has ? TamuColors.primary : TamuColors.warning),
-              const SizedBox(width: 8),
-              Text(
-                  user.isFarmer ? 'Public Pickup Point' : 'My Location',
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              TextButton(
-                onPressed: _editLocation,
-                child: Text(has ? 'Edit' : 'Set',
-                    style: const TextStyle(fontSize: 15)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          if (!has)
-            Text(
-              user.isFarmer
-                  ? 'Set a public market or pickup point for buyers. Do not use a private home address unless you choose to share it.'
-                  : 'Set your location to see how far each farm is from you.',
-              style: const TextStyle(
-                  fontSize: 14, color: TamuColors.textSecondary),
-            )
-          else ...[
-            if (user.farmName != null && user.farmName!.isNotEmpty)
-              Text(user.farmName!,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w500)),
-            if (user.address != null && user.address!.isNotEmpty)
-              Text(user.address!,
-                  style: const TextStyle(
-                      fontSize: 14, color: TamuColors.textSecondary)),
-            const SizedBox(height: 4),
-            Text(
-              '${user.latitude!.toStringAsFixed(4)}, '
-              '${user.longitude!.toStringAsFixed(4)}',
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontFamily: 'monospace',
-                  color: TamuColors.textSecondary),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActions() {
-    return Column(
-      children: [
-        ElevatedButton.icon(
-          onPressed: _editProfile,
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('Edit Profile'),
-        ),
-        const SizedBox(height: TamuSizes.gap),
-        OutlinedButton.icon(
-          onPressed: _changePassword,
-          icon: const Icon(Icons.lock_reset),
-          label: const Text('Change Password'),
-        ),
-        const SizedBox(height: TamuSizes.gap),
-        OutlinedButton.icon(
-          onPressed: _logout,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: TamuColors.danger,
-            side: const BorderSide(color: TamuColors.danger),
-          ),
-          icon: const Icon(Icons.logout),
-          label: const Text('Log Out'),
-        ),
-      ],
-    );
-  }
-
-  String _formatDate(DateTime d) {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 }
