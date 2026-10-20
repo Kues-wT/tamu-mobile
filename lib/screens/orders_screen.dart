@@ -6,7 +6,6 @@ import 'profile_screen.dart' as profile;
 import 'requests_screen.dart' as requests;
 import 'notifications_screen.dart' as notifications;
 import 'login_screen.dart' as login;
-import 'login_screen.dart' as login;
 
 /// Orders list.
 /// Farmers see orders RECEIVED for their crops, with Accept / Reject.

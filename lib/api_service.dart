@@ -508,7 +508,12 @@ class ApiService {
       };
 
   /// Pulls the human-readable message out of a FastAPI error response.
-  static String _errorMessage(http.Response r) {
+  static String _errorMessage(http.Response r, {bool sessionCheck = true}) {
+    // Missing, expired or invalid token. Screens look for "401" to show
+    // a "Sign in again" state instead of a generic error.
+    if (sessionCheck && r.statusCode == 401) {
+      return 'Not authenticated (401). Please sign in again.';
+    }
     try {
       final body = jsonDecode(r.body);
       final detail = body['detail'];
@@ -536,7 +541,8 @@ class ApiService {
       currentUser = AppUser.fromJson(data['user']);
       return currentUser!;
     }
-    throw Exception(_errorMessage(response));
+    // A 401 here means wrong email/password, so show the backend's own text.
+    throw Exception(_errorMessage(response, sessionCheck: false));
   }
 
   /// POST /register
