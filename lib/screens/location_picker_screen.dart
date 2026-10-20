@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+
 import '../api_service.dart';
 import '../map_config.dart';
 import '../theme.dart';
@@ -13,16 +14,27 @@ class LocationPickResult {
 }
 
 /// Lets the farmer tap a real map to choose a public selling/pickup point.
+/// Also used for a buyer's delivery pin, and read-only ([readOnly]) when a
+/// farmer views where to deliver.
 class LocationPickerScreen extends StatefulWidget {
   final double? initialLatitude;
   final double? initialLongitude;
   final bool isFarmer;
+  final bool readOnly;
+  // Optional overrides; null keeps the farmer/buyer profile wording.
+  final String? title;
+  final String? instruction;
+  final String? note;
 
   const LocationPickerScreen({
     super.key,
     this.initialLatitude,
     this.initialLongitude,
     this.isFarmer = true,
+    this.readOnly = false,
+    this.title,
+    this.instruction,
+    this.note,
   });
 
   @override
@@ -45,7 +57,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     super.initState();
     _mapController = MapController();
     if (widget.initialLatitude != null && widget.initialLongitude != null) {
-      _selectedPoint = LatLng(widget.initialLatitude!, widget.initialLongitude!);
+      _selectedPoint = LatLng(
+        widget.initialLatitude!,
+        widget.initialLongitude!,
+      );
     }
   }
 
@@ -60,10 +75,25 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   Widget build(BuildContext context) {
     final point = _selectedPoint;
+    final instruction =
+        widget.instruction ??
+        (widget.isFarmer
+            ? 'Move the map and tap to pin your public selling / pickup point.'
+            : 'Move the map and tap to choose your location.');
+    final note =
+        widget.note ??
+        (widget.isFarmer
+            ? 'This point is shown to buyers. Do not choose a private home location unless you intend to share it.'
+            : null);
     return Scaffold(
       backgroundColor: TamuColors.background,
       appBar: AppBar(
-        title: Text(widget.isFarmer ? 'Choose public pickup point' : 'Choose my location'),
+        title: Text(
+          widget.title ??
+              (widget.isFarmer
+                  ? 'Choose public pickup point'
+                  : 'Choose my location'),
+        ),
       ),
       body: SafeArea(
         child: Column(
@@ -76,7 +106,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   initialZoom: point == null ? 12 : 15,
                   minZoom: 8,
                   maxZoom: 19,
-                  onTap: (_, latLng) => setState(() => _selectedPoint = latLng),
+                  onTap: widget.readOnly
+                      ? null
+                      : (_, latLng) => setState(() => _selectedPoint = latLng),
                 ),
                 children: [
                   TileLayer(
@@ -92,8 +124,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                           width: 48,
                           height: 52,
                           alignment: Alignment.topCenter,
-                          child: const Icon(Icons.location_on,
-                              size: 46, color: TamuColors.primary),
+                          child: const Icon(
+                            Icons.location_on,
+                            size: 46,
+                            color: TamuColors.primary,
+                          ),
                         ),
                       ],
                     ),
@@ -116,18 +151,20 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.isFarmer
-                        ? 'Move the map and tap to pin your public selling / pickup point.'
-                        : 'Move the map and tap to choose your location.',
+                    instruction,
                     style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  if (widget.isFarmer) ...[
+                  if (note != null) ...[
                     const SizedBox(height: 3),
-                    const Text(
-                      'This point is shown to buyers. Do not choose a private home location unless you intend to share it.',
-                      style: TextStyle(
-                          fontSize: 12, color: TamuColors.textSecondary),
+                    Text(
+                      note,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: TamuColors.textSecondary,
+                      ),
                     ),
                   ],
                   if (point != null) ...[
@@ -135,29 +172,39 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     Text(
                       '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}',
                       style: const TextStyle(
-                          fontSize: 12,
-                          fontFamily: 'monospace',
-                          color: TamuColors.textSecondary),
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: TamuColors.textSecondary,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
-                        ),
+                  if (widget.readOnly)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Close'),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: point == null ? null : _confirm,
-                          child: const Text('Use this point'),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Cancel'),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: point == null ? null : _confirm,
+                            child: const Text('Use this point'),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),

@@ -7,6 +7,7 @@ import 'profile_screen.dart' as profile;
 import 'requests_screen.dart' as requests;
 import 'notifications_screen.dart' as notifications;
 import 'login_screen.dart' as login;
+import 'location_picker_screen.dart' as location_picker;
 
 /// Orders list.
 /// Farmers see orders RECEIVED for their crops, with Accept / Reject.
@@ -110,6 +111,22 @@ class _OrdersScreenState extends State<OrdersScreen> {
       MaterialPageRoute(builder: (_) => const notifications.NotificationsScreen()),
     );
     if (mounted) await _refresh();
+  }
+
+  void _openDeliveryPin(Order order) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => location_picker.LocationPickerScreen(
+          initialLatitude: order.deliveryLatitude,
+          initialLongitude: order.deliveryLongitude,
+          readOnly: true,
+          title: 'Delivery location',
+          instruction: 'Deliver ${order.productName ?? 'this order'} '
+              'to ${order.buyerName} here.',
+          note: order.deliveryAddress,
+        ),
+      ),
+    );
   }
 
   void _signInAgain() {
@@ -636,6 +653,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           style: const TextStyle(
                               fontSize: 12, color: TamuColors.textSecondary),
                         ),
+                        const SizedBox(height: 2),
+                        Text('Buyer: ${order.buyerName}',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: TamuColors.textSecondary)),
                       ],
                     ),
                   ),
@@ -647,27 +669,48 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 ],
               ),
             ),
-            // Buyer line sits where Figma shows pickup/delivery; orders do
-            // not record a fulfilment method until checkout is built.
+            // Figma ".fulfil-line": pickup/delivery chosen at checkout.
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.person_outline,
-                      size: 22, color: TamuColors.darkGreen),
+                  Icon(
+                      order.isDelivery
+                          ? Icons.local_shipping_outlined
+                          : Icons.place_outlined,
+                      size: 22,
+                      color: TamuColors.darkGreen),
                   const SizedBox(width: 9),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(order.buyerName,
+                        Text(order.fulfilmentLabel,
                             style: const TextStyle(
                                 fontSize: 14, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 3),
-                        const Text('Buyer',
-                            style: TextStyle(
+                        Text(order.handoverPlace,
+                            style: const TextStyle(
                                 fontSize: 12,
                                 color: TamuColors.textSecondary)),
+                        const SizedBox(height: 2),
+                        Text(order.paymentLabel,
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: TamuColors.textSecondary)),
+                        if (order.isDelivery && order.hasDeliveryPin)
+                          TextButton.icon(
+                            onPressed: () => _openDeliveryPin(order),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 40),
+                              textStyle: GoogleFonts.poppins(
+                                  fontSize: 13, fontWeight: FontWeight.w700),
+                            ),
+                            icon: const Icon(Icons.map_outlined, size: 18),
+                            label: const Text('View delivery pin'),
+                          ),
                       ],
                     ),
                   ),

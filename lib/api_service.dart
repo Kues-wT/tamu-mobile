@@ -186,6 +186,12 @@ class Order {
   final DateTime createdAt;
   final String? productName;
   final String? farmerName;
+  final String fulfilmentMethod; // pickup | delivery
+  final String? deliveryAddress;
+  final double? deliveryLatitude; // optional delivery map pin
+  final double? deliveryLongitude;
+  final String? pickupPoint; // farmer's public point when ordered
+  final String paymentMethod; // pay_on_handover | mock_online (demo only)
 
   Order({
     required this.id,
@@ -199,7 +205,30 @@ class Order {
     required this.createdAt,
     this.productName,
     this.farmerName,
+    this.fulfilmentMethod = 'pickup',
+    this.deliveryAddress,
+    this.deliveryLatitude,
+    this.deliveryLongitude,
+    this.pickupPoint,
+    this.paymentMethod = 'pay_on_handover',
   });
+
+  bool get isDelivery => fulfilmentMethod == 'delivery';
+
+  bool get hasDeliveryPin =>
+      deliveryLatitude != null && deliveryLongitude != null;
+
+  String get fulfilmentLabel => isDelivery ? 'Delivery' : 'Pickup';
+
+  /// Where the handover happens, for display.
+  String get handoverPlace => isDelivery
+      ? (deliveryAddress ??
+          (hasDeliveryPin ? 'Pinned on map' : 'Address not given'))
+      : (pickupPoint ?? "Farmer's public pickup point");
+
+  String get paymentLabel => paymentMethod == 'mock_online'
+      ? 'Mock online payment (simulated)'
+      : (isDelivery ? 'Pay on delivery' : 'Pay on pickup');
 
   factory Order.fromJson(Map<String, dynamic> json) => Order(
         id: json['id'] as int,
@@ -213,6 +242,12 @@ class Order {
         createdAt: DateTime.parse(json['created_at'] as String),
         productName: json['product_name'] as String?,
         farmerName: json['farmer_name'] as String?,
+        fulfilmentMethod: json['fulfilment_method'] as String? ?? 'pickup',
+        deliveryAddress: json['delivery_address'] as String?,
+        deliveryLatitude: (json['delivery_latitude'] as num?)?.toDouble(),
+        deliveryLongitude: (json['delivery_longitude'] as num?)?.toDouble(),
+        pickupPoint: json['pickup_point'] as String?,
+        paymentMethod: json['payment_method'] as String? ?? 'pay_on_handover',
       );
 }
 
@@ -805,9 +840,15 @@ class ApiService {
   }
 
   /// POST /orders - buyer places an order.
+  /// [paymentMethod] is a demo choice only; no payment is processed.
   static Future<Order> createOrder({
     required int productId,
     required int quantity,
+    String fulfilmentMethod = 'pickup',
+    String? deliveryAddress,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
+    String paymentMethod = 'pay_on_handover',
   }) async {
     final response = await http
         .post(
@@ -816,6 +857,11 @@ class ApiService {
           body: jsonEncode({
             'product_id': productId,
             'quantity': quantity,
+            'fulfilment_method': fulfilmentMethod,
+            'delivery_address': ?deliveryAddress,
+            'delivery_latitude': ?deliveryLatitude,
+            'delivery_longitude': ?deliveryLongitude,
+            'payment_method': paymentMethod,
           }),
         )
         .timeout(const Duration(seconds: 10));

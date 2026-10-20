@@ -5,10 +5,10 @@ import '../theme.dart';
 import '../api_service.dart';
 import '../map_config.dart';
 import 'ar_view_screen.dart';
+import 'checkout_screen.dart';
 import 'nearby_farms_screen.dart';
 
-/// Product detail + place order.
-/// Returns the crop name to the previous screen if an order was placed.
+/// Product detail. "Review order" opens the FR5 checkout screen.
 class ProductDetailScreen extends StatefulWidget {
   final Product product;
   const ProductDetailScreen({super.key, required this.product});
@@ -19,7 +19,6 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _quantity = 1;
-  bool _ordering = false;
 
   Product get p => widget.product;
   String get _unitPlural => formatUnitQuantity(2, p.unit).split(' ').last;
@@ -75,31 +74,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  Future<void> _placeOrder() async {
-    setState(() {
-      _ordering = true;
-    });
-
-    try {
-      await ApiService.createOrder(
-        productId: p.id,
-        quantity: _quantity,
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop(p.name);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _ordering = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: TamuColors.danger,
-          content: Text(e.toString().replaceFirst('Exception: ', ''),
-              style: const TextStyle(fontSize: 16, color: Colors.white)),
-        ),
-      );
-    }
+  /// FR5: the order itself is placed on the Review order screen.
+  void _reviewOrder() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CheckoutScreen(product: p, quantity: _quantity),
+      ),
+    );
   }
 
   @override
@@ -142,20 +123,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   _buildTotalCard(),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
-                    onPressed: _ordering ? null : _placeOrder,
-                    icon: _ordering
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.shopping_cart_checkout),
-                    label: Text(_ordering ? 'Placing order...' : 'Place Order'),
+                    onPressed: _reviewOrder,
+                    icon: const Icon(Icons.shopping_cart_checkout),
+                    label: Text('Review order · RM ${_total.toStringAsFixed(2)}'),
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'The farmer will review and confirm your order.',
+                    'Choose pickup or delivery on the next screen.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: 13, color: TamuColors.textSecondary),

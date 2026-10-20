@@ -61,30 +61,13 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     if (mounted) await _refresh();
   }
 
-  /// Opens the detail page. If an order was placed it returns the crop
-  /// name, so we reload (stock may have changed) and confirm to the user.
+  /// Opens the detail page. Ordering now ends on the Order placed screen,
+  /// so just reload when the buyer comes back (badges/stock may change).
   Future<void> _openProduct(Product p) async {
-    final orderedName = await Navigator.of(context).push<String>(
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ProductDetailScreen(product: p)),
     );
-    if (!mounted || orderedName == null) return;
-    await _refresh();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 2),
-        backgroundColor: TamuColors.primary,
-        content: Text(
-          'Order placed for $orderedName!',
-          style: const TextStyle(fontSize: 16, color: Colors.white),
-        ),
-        action: SnackBarAction(
-          label: 'VIEW',
-          textColor: Colors.white,
-          onPressed: _openOrders,
-        ),
-      ),
-    );
+    if (mounted) await _refresh();
   }
 
   Future<void> _openOrders() async {
