@@ -9,7 +9,18 @@ import '../map_config.dart';
 /// Farm pins and the buyer's search radius use latitude/longitude values
 /// returned by the FastAPI backend.
 class NearbyFarmsScreen extends StatefulWidget {
-  const NearbyFarmsScreen({super.key});
+  final int? focusFarmId;
+  final double? focusLatitude;
+  final double? focusLongitude;
+  final String? focusLabel;
+
+  const NearbyFarmsScreen({
+    super.key,
+    this.focusFarmId,
+    this.focusLatitude,
+    this.focusLongitude,
+    this.focusLabel,
+  });
 
   @override
   State<NearbyFarmsScreen> createState() => _NearbyFarmsScreenState();
@@ -27,6 +38,13 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
       ApiService.currentUser?.latitude ?? kTamparuliLat;
   double get _refLng =>
       ApiService.currentUser?.longitude ?? kTamparuliLng;
+
+  LatLng get _cameraCenter {
+    if (widget.focusLatitude != null && widget.focusLongitude != null) {
+      return LatLng(widget.focusLatitude!, widget.focusLongitude!);
+    }
+    return LatLng(_refLat, _refLng);
+  }
 
   @override
   void initState() {
@@ -62,14 +80,14 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
 
     if (_mapReady) {
       _mapController.move(
-        LatLng(_refLat, _refLng),
+        _cameraCenter,
         _zoomForRadius(radius),
       );
     }
   }
 
   List<Marker> _markersFor(List<NearbyFarm> farms) {
-    return [
+    final markers = <Marker>[
       Marker(
         point: LatLng(_refLat, _refLng),
         width: 42,
@@ -86,7 +104,14 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
           child: const Icon(Icons.my_location, size: 19, color: Colors.white),
         ),
       ),
-      for (final farm in farms)
+    ];
+
+    final focusedFarmIsListed = farms.any(
+      (farm) => farm.ownerId == widget.focusFarmId,
+    );
+    for (final farm in farms) {
+      final isFocused = farm.ownerId == widget.focusFarmId;
+      markers.add(
         Marker(
           point: LatLng(farm.latitude, farm.longitude),
           width: 44,
@@ -94,15 +119,40 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
           alignment: Alignment.topCenter,
           child: Tooltip(
             message: farm.farmName ?? farm.farmerName,
-            child: const Icon(
+            child: Icon(
               Icons.location_on,
               size: 42,
-              color: TamuColors.primary,
+              color: isFocused ? TamuColors.warning : TamuColors.primary,
+              shadows: const [Shadow(color: Colors.black26, blurRadius: 3)],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (widget.focusFarmId != null &&
+        !focusedFarmIsListed &&
+        widget.focusLatitude != null &&
+        widget.focusLongitude != null) {
+      markers.add(
+        Marker(
+          point: LatLng(widget.focusLatitude!, widget.focusLongitude!),
+          width: 48,
+          height: 52,
+          alignment: Alignment.topCenter,
+          child: Tooltip(
+            message: widget.focusLabel ?? 'Selected public pickup point',
+            child: const Icon(
+              Icons.location_on,
+              size: 46,
+              color: TamuColors.warning,
               shadows: [Shadow(color: Colors.black26, blurRadius: 3)],
             ),
           ),
         ),
-    ];
+      );
+    }
+    return markers;
   }
 
   List<CircleMarker> _radiusCircle() => [
@@ -273,8 +323,8 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
       child: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          initialCenter: LatLng(_refLat, _refLng),
-          initialZoom: _zoomForRadius(_radius),
+          initialCenter: _cameraCenter,
+          initialZoom: widget.focusFarmId == null ? _zoomForRadius(_radius) : 14,
           minZoom: 8,
           maxZoom: 18,
           onMapReady: () => _mapReady = true,

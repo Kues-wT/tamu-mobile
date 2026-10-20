@@ -22,8 +22,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   bool _ordering = false;
 
   Product get p => widget.product;
+  String get _unitPlural => formatUnitQuantity(2, p.unit).split(' ').last;
 
-  double get _total => p.pricePerKg * _quantity;
+  double get _total => p.pricePerUnit * _quantity;
 
   bool get _notYetAvailable {
     final from = p.availableFrom;
@@ -55,7 +56,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   void _changeQty(int delta) {
     final next = _quantity + delta;
-    if (next < 1 || next > p.stockKg) return;
+    if (next < 1 || next > p.stockQuantity) return;
     setState(() {
       _quantity = next;
     });
@@ -63,7 +64,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Future<void> _openNearbyFarms() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const NearbyFarmsScreen()),
+      MaterialPageRoute(
+        builder: (_) => NearbyFarmsScreen(
+          focusFarmId: p.ownerId,
+          focusLatitude: p.latitude,
+          focusLongitude: p.longitude,
+          focusLabel: p.farmName ?? p.farmerName,
+        ),
+      ),
     );
   }
 
@@ -75,7 +83,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     try {
       await ApiService.createOrder(
         productId: p.id,
-        quantityKg: _quantity,
+        quantity: _quantity,
       );
       if (!mounted) return;
       Navigator.of(context).pop(p.name);
@@ -292,7 +300,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('RM ${p.pricePerKg.toStringAsFixed(2)} /kg',
+              Text('RM ${p.pricePerUnit.toStringAsFixed(2)} / ${p.unit}',
                   style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -409,14 +417,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               style: const TextStyle(
                   fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          Text(farmName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,),
-              ),
-              const SizedBox(height: 2),
           Text(distance,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -439,11 +439,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     } else if (p.isLowStock) {
       bg = const Color(0xFFFFF8E1);
       fg = TamuColors.warning;
-      text = 'Only ${p.stockKg} kg left';
+      text = 'Only ${formatUnitQuantity(p.stockQuantity, p.unit)} left';
     } else {
       bg = TamuColors.lightGreen;
       fg = TamuColors.primary;
-      text = '${p.stockKg} kg available';
+      text = '${formatUnitQuantity(p.stockQuantity, p.unit)} available';
     }
 
     return Container(
@@ -467,7 +467,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('How many kilograms?',
+          Text('How many $_unitPlural?',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
           Row(
@@ -477,17 +477,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               Container(
                 width: 90,
                 alignment: Alignment.center,
-                child: Text('$_quantity kg',
+                child: Text(formatUnitQuantity(_quantity, p.unit),
                     style: const TextStyle(
                         fontSize: 24, fontWeight: FontWeight.bold)),
               ),
               _qtyButton(
-                  Icons.add, () => _changeQty(1), _quantity < p.stockKg),
+                  Icons.add, () => _changeQty(1), _quantity < p.stockQuantity),
             ],
           ),
           const SizedBox(height: 8),
           Center(
-            child: Text('Maximum ${p.stockKg} kg',
+            child: Text('Maximum ${formatUnitQuantity(p.stockQuantity, p.unit)}',
                 style: const TextStyle(
                     fontSize: 13, color: TamuColors.textSecondary)),
           ),
@@ -531,7 +531,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             children: [
               const Text('Total',
                   style: TextStyle(fontSize: 14, color: TamuColors.textSecondary)),
-              Text('$_quantity kg × RM ${p.pricePerKg.toStringAsFixed(2)}',
+              Text('${formatUnitQuantity(_quantity, p.unit)} × RM ${p.pricePerUnit.toStringAsFixed(2)} / ${p.unit}',
                   style: const TextStyle(fontSize: 14)),
             ],
           ),

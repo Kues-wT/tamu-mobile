@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../widgets/farmer_bottom_nav.dart';
 import 'login_screen.dart' as login;
 import 'orders_screen.dart' as orders;
 import 'requests_screen.dart' as requests;
 import 'notifications_screen.dart' as notifications;
+import 'location_picker_screen.dart' as location_picker;
 
 /// Profile screen (part of FR1 User Management).
 /// Buyers get the Figma-style account page; farmer profile/location tools remain available.
@@ -327,9 +329,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // -------------------------------------------------------------- location
 
-  /// FR3: set the farm (or pickup) location. Coordinates are typed in,
-  /// which works offline and needs no GPS permission. Tell the farmer
-  /// how to read them off Google Maps.
+  /// FR3: set the farm's public selling/pickup point or the buyer's search
+  /// location. Users may pick a point on the real map or enter coordinates.
   Future<void> _editLocation() async {
     final user = ApiService.currentUser!;
     final farmCtrl = TextEditingController(text: user.farmName ?? '');
@@ -421,7 +422,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await Navigator.of(ctx)
+                        .push<location_picker.LocationPickResult>(
+                      MaterialPageRoute(
+                        builder: (_) => location_picker.LocationPickerScreen(
+                          initialLatitude: double.tryParse(latCtrl.text.trim()) ??
+                              user.latitude,
+                          initialLongitude:
+                              double.tryParse(lngCtrl.text.trim()) ??
+                                  user.longitude,
+                          isFarmer: user.isFarmer,
+                        ),
+                      ),
+                    );
+                    if (picked == null) return;
+                    latCtrl.text = picked.latitude.toStringAsFixed(6);
+                    lngCtrl.text = picked.longitude.toStringAsFixed(6);
+                  },
+                  icon: const Icon(Icons.map_outlined),
+                  label: Text(
+                    user.isFarmer
+                        ? 'Choose public pickup point on map'
+                        : 'Choose location on map',
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -430,10 +458,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: Text(
                     user.isFarmer
-                        ? 'Buyers can see this point as your public selling / pickup location. '
-                            'Choose a market or meeting point; do not use your private home address unless you intend to share it.\n\n'
-                            'To find its coordinates, open Google Maps, press and hold on the public point, then copy the latitude and longitude.'
-                        : 'To find your coordinates, open Google Maps, press and hold on your location, then copy the latitude and longitude.',
+                        ? 'Buyers can see this point as your public selling / pickup location. Choose a market or meeting point, not a private home address unless you intend to share it. Use the map picker above or enter coordinates manually.'
+                        : 'Use the map picker above or enter coordinates manually to set your search location.',
                     style: const TextStyle(fontSize: 13),
                   ),
                 ),
@@ -514,6 +540,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final user = ApiService.currentUser;
     final isBuyer = user?.isBuyer ?? false;
+    final isFarmer = user?.isFarmer ?? false;
 
     return PopScope(
       canPop: false,
@@ -526,7 +553,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         body: user == null
             ? const SafeArea(child: Center(child: Text('Not logged in')))
             : (isBuyer ? _buildBuyerProfile(user) : _buildFarmerProfile(user)),
-        bottomNavigationBar: isBuyer ? _buildBuyerBottomNav() : null,
+        bottomNavigationBar: isBuyer
+            ? _buildBuyerBottomNav()
+            : (isFarmer
+                ? FarmerBottomNav(
+                    currentIndex: 3,
+                    onTap: (index) {
+                      if (index != 3) navigateToFarmerTab(context, index);
+                    },
+                  )
+                : null),
       ),
     );
   }
@@ -872,6 +908,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildFarmerProfile(AppUser user) {
     return SafeArea(
+      bottom: false,
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 430),

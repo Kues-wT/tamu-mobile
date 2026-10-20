@@ -1,14 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import '../theme.dart';
 import '../api_service.dart';
+import '../theme.dart';
+import '../widgets/farmer_bottom_nav.dart';
 import 'add_crop_screen.dart' as add_crop;
-import 'orders_screen.dart' as orders;
-import 'sales_report_screen.dart' as reports;
-import 'profile_screen.dart' as profile;
 import 'notifications_screen.dart' as notifications;
 import 'requests_screen.dart' as requests;
+import 'sales_report_screen.dart' as reports;
 
-/// Farmer dashboard - shows ONLY the logged-in farmer's own crops.
+/// Farmer dashboard. Farmer listings and orders are separate tabs.
 class FarmerHomeScreen extends StatefulWidget {
   const FarmerHomeScreen({super.key});
 
@@ -17,115 +18,103 @@ class FarmerHomeScreen extends StatefulWidget {
 }
 
 class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
-  late Future<List<Product>> _productsFuture;
   late Future<Badges> _badgesFuture;
+  late Future<SalesReport> _salesFuture;
+  late Future<List<Order>> _attentionOrdersFuture;
 
   @override
   void initState() {
     super.initState();
-    // /products/mine - not /products. This is the ownership fix.
-    _productsFuture = ApiService.fetchMyProducts();
+    _load();
+  }
+
+  void _load() {
     _badgesFuture = ApiService.fetchBadges();
+    _salesFuture = ApiService.fetchSalesReport(months: 6);
+    _attentionOrdersFuture = ApiService.fetchOrders(status: 'pending');
   }
 
   Future<void> _refresh() async {
-    // Braces, not '=>'. An arrow function returns its value, and
-    // setState() must never be given a Future.
-    setState(() {
-      _productsFuture = ApiService.fetchMyProducts();
-      _badgesFuture = ApiService.fetchBadges();
-    });
-    await _productsFuture;
+    setState(_load);
+    await Future.wait([
+      _badgesFuture,
+      _salesFuture,
+      _attentionOrdersFuture,
+    ]);
   }
 
   String get _greeting {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Good morning';
-    if (h < 18) return 'Good afternoon';
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
     return 'Good evening';
   }
 
+  String get _dateLabel {
+    const weekdays = [
+      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+    ];
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    final now = DateTime.now();
+    return '${weekdays[now.weekday - 1].toUpperCase()}, '
+        '${now.day} ${months[now.month - 1].toUpperCase()}';
+  }
+
+  bool get _isSampleAccount {
+    const demoEmails = {
+      'siti@tamu.my',
+      'jumat@tamu.my',
+      'gundoh@tamu.my',
+    };
+    return demoEmails.contains(ApiService.currentUser?.email.toLowerCase());
+  }
+
   Future<void> _openAddCrop() async {
-    // The form returns the crop name on success, or null if cancelled.
     final name = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (_) => const add_crop.AddCropScreen()),
     );
     if (!mounted || name == null) return;
     await _refresh();
-    if (!mounted) return;
-    _snack('$name added successfully!', TamuColors.primary);
+    if (mounted) _snack('$name added successfully', TamuColors.primary);
   }
 
-  Future<void> _openEditCrop(Product product) async {
-    final name = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => add_crop.AddCropScreen(existing: product)),
-    );
-    if (!mounted || name == null) return;
-    await _refresh();
-    if (!mounted) return;
-    _snack('$name updated!', TamuColors.primary);
-  }
-
-  Future<void> _confirmDelete(Product product) async {
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete this crop?'),
-        content: Text(
-          '"${product.name}" will be removed from the marketplace. '
-          'This cannot be undone.',
-          style: const TextStyle(fontSize: 16),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(fontSize: 16)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete',
-                style: TextStyle(fontSize: 16, color: TamuColors.danger)),
-          ),
-        ],
-      ),
-    );
-
-    if (yes != true) return;
-
-    try {
-      await ApiService.deleteProduct(product.id);
-      if (!mounted) return;
-      _snack('${product.name} deleted', TamuColors.primary);
-      await _refresh();
-    } catch (e) {
-      if (!mounted) return;
-      _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
-    }
-  }
-
-  /// Opens the incoming orders inbox. Accepting an order changes stock,
-  /// so we refresh the dashboard when we come back.
-  Future<void> _openOrders() async {
+  Future<void> _openNotifications() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const orders.OrdersScreen()),
+      MaterialPageRoute(
+          builder: (_) => const notifications.NotificationsScreen()),
     );
-    if (mounted) await _refresh();
+    if (mounted) setState(() => _badgesFuture = ApiService.fetchBadges());
   }
 
-  /// Opens the profile. If the name changed, listings show the new
-  /// farmer name, so refresh when we come back.
-  Future<void> _openProfile() async {
-    final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const profile.ProfileScreen()),
+  Future<void> _openRequests() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const requests.RequestsScreen()),
     );
-    if (mounted && changed == true) await _refresh();
+    if (mounted) setState(() => _badgesFuture = ApiService.fetchBadges());
   }
 
-  void _snack(String msg, Color color) {
+  void _openListings() {
+    Navigator.of(context).pushNamed('/farmer/listings');
+  }
+
+  void _openOrders() {
+    Navigator.of(context).pushNamed('/farmer/orders');
+  }
+
+  void _openReport() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const reports.SalesReportScreen()),
+    );
+  }
+
+  void _snack(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: color,
-        content: Text(msg, style: const TextStyle(fontSize: 16)),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
       ),
     );
   }
@@ -135,108 +124,322 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     return Scaffold(
       backgroundColor: TamuColors.background,
       body: SafeArea(
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            child: FutureBuilder<List<Product>>(
-              future: _productsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return _buildError(snapshot.error.toString());
-                }
-                final products = snapshot.data ?? [];
-                final lowStock = products.where((p) => p.isLowStock).toList();
-
-                return RefreshIndicator(
-                  onRefresh: _refresh,
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      _buildHeader(),
-                      Padding(
-                        padding: const EdgeInsets.all(TamuSizes.pagePadding),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildSummaryGrid(products, lowStock.length),
-                            const SizedBox(height: 20),
-                            if (lowStock.isNotEmpty) ...[
-                              _buildLowStockAlert(lowStock),
-                              const SizedBox(height: 20),
-                            ],
-                            const Text('My Listings',
-                                style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: TamuSizes.gap),
-                            if (products.isEmpty)
-                              _buildEmptyState()
-                            else
-                              ...products.map(_buildListingTile),
-                            const SizedBox(height: 20),
-                            ElevatedButton.icon(
-                              onPressed: _openAddCrop,
-                              icon: const Icon(Icons.add),
-                              label: const Text('Add New Crop'),
-                            ),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                    ],
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.zero,
+                children: [
+                  _buildHeader(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_isSampleAccount) _buildSampleDataLabel(),
+                        _buildSalesCard(),
+                        const SizedBox(height: 10),
+                        _buildAttentionCounts(),
+                        const SizedBox(height: 18),
+                        _buildSectionHeading('Quick actions', 'Common tasks'),
+                        const SizedBox(height: 10),
+                        _buildQuickActions(),
+                        const SizedBox(height: 20),
+                        _buildNeedsAttentionHeading(),
+                        const SizedBox(height: 10),
+                        _buildNeedsAttention(),
+                        const SizedBox(height: 12),
+                      ],
+                    ),
                   ),
-                );
-              },
+                ],
+              ),
             ),
           ),
         ),
       ),
+      bottomNavigationBar: FarmerBottomNav(
+        currentIndex: 0,
+        onTap: (index) {
+          if (index != 0) navigateToFarmerTab(context, index);
+        },
+      ),
     );
   }
 
+  Widget _buildHeader() {
+    final user = ApiService.currentUser;
+    final farmerName = user?.fullName ?? 'Farmer';
+    final farmName = user?.farmName?.trim().isNotEmpty == true
+        ? user!.farmName!.trim()
+        : (user?.fullName ?? 'Your farm');
 
-  /// FR8: header icons with live red count badges.
-  Widget _buildHeaderIcons() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 14, 12, 24),
+      decoration: const BoxDecoration(
+        color: TamuColors.darkGreen,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_dateLabel,
+                    style: const TextStyle(
+                        fontSize: 10,
+                        letterSpacing: 1,
+                        fontWeight: FontWeight.bold,
+                        color: TamuColors.secondary)),
+                const SizedBox(height: 8),
+                Text('$_greeting, $farmerName',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white)),
+                const SizedBox(height: 4),
+                Text(farmName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFFA5D6A7))),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _notificationButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _notificationButton() {
     return FutureBuilder<Badges>(
       future: _badgesFuture,
-      builder: (context, snap) {
-        final b = snap.data ?? const Badges();
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _badgeIcon(
-              icon: Icons.notifications_outlined,
-              tooltip: 'Notifications',
-              count: b.unreadNotifications,
-              onPressed: _openNotifications,
+      builder: (context, snapshot) {
+        final count = snapshot.data?.unreadNotifications ?? 0;
+        return InkWell(
+          onTap: _openNotifications,
+          borderRadius: BorderRadius.circular(24),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
             ),
-            _badgeIcon(
-              icon: Icons.campaign_outlined,
-              tooltip: 'Crop Requests',
-              count: b.openRequests,
-              onPressed: _openRequests,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(Icons.notifications_none,
+                    color: TamuColors.darkGreen, size: 23),
+                if (count > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      constraints:
+                          const BoxConstraints(minWidth: 17, minHeight: 17),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: TamuColors.warning,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(count > 9 ? '9+' : '$count',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: TamuColors.darkGreen)),
+                    ),
+                  ),
+              ],
             ),
-            _badgeIcon(
-              icon: Icons.receipt_long_outlined,
-              tooltip: 'Incoming Orders',
-              count: b.pendingOrders,
-              onPressed: _openOrders,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSampleDataLabel() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: TamuColors.border),
+              borderRadius: BorderRadius.circular(4),
             ),
-            IconButton(
-              tooltip: 'Sales Report',
-              visualDensity: VisualDensity.compact,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const reports.SalesReportScreen()),
+            child: const Text('SAMPLE DATA',
+                style: TextStyle(
+                    fontSize: 9,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.bold,
+                    color: TamuColors.textSecondary)),
+          ),
+          const SizedBox(width: 8),
+          const Text('Illustrative business data',
+              style: TextStyle(fontSize: 10, color: TamuColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSalesCard() {
+    return FutureBuilder<SalesReport>(
+      future: _salesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _buildSalesUnavailable();
+        }
+        if (!snapshot.hasData) {
+          return Container(
+            height: 150,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: TamuColors.primary,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const CircularProgressIndicator(color: Colors.white),
+          );
+        }
+        final report = snapshot.data!;
+        final maxRevenue = report.monthly.fold<double>(
+          0,
+          (maxValue, item) => math.max(maxValue, item.revenue).toDouble(),
+        );
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 13, 12, 10),
+          decoration: BoxDecoration(
+            color: TamuColors.primary,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 4)),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text('Sales this month',
+                        style: TextStyle(fontSize: 12, color: Colors.white)),
+                  ),
+                  TextButton(
+                    onPressed: _openReport,
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, 34),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      backgroundColor: Colors.white.withValues(alpha: 0.15),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('View report  ›',
+                        style: TextStyle(fontSize: 11)),
+                  ),
+                ],
               ),
-              icon: const Icon(Icons.bar_chart, color: Colors.white),
+              Text('RM ${report.thisMonthRevenue.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      fontSize: 27,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+              Text('${report.thisMonthOrders} completed orders',
+                  style: const TextStyle(fontSize: 13, color: Colors.white)),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 34,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (final month in report.monthly)
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          height: maxRevenue <= 0
+                              ? 4
+                              : math
+                                  .max(4.0, 30 * month.revenue / maxRevenue)
+                                  .toDouble(),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.24),
+                            borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(3)),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSalesUnavailable() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: TamuColors.primary,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text('Sales summary is unavailable right now.',
+                style: TextStyle(fontSize: 14, color: Colors.white)),
+          ),
+          TextButton(
+            onPressed: _openReport,
+            child: const Text('View report',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttentionCounts() {
+    return FutureBuilder<Badges>(
+      future: _badgesFuture,
+      builder: (context, snapshot) {
+        final badges = snapshot.data ?? const Badges();
+        return Row(
+          children: [
+            Expanded(
+              child: _countCard(
+                icon: Icons.receipt_long_outlined,
+                count: badges.pendingOrders,
+                label: 'Pending orders',
+                color: TamuColors.warning,
+                onTap: _openOrders,
+              ),
             ),
-            IconButton(
-              tooltip: 'My Profile',
-              visualDensity: VisualDensity.compact,
-              onPressed: _openProfile,
-              icon: const Icon(Icons.person_outline, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _countCard(
+                icon: Icons.forum_outlined,
+                count: badges.openRequests,
+                label: 'Open requests',
+                color: TamuColors.primary,
+                onTap: _openRequests,
+              ),
             ),
           ],
         );
@@ -244,320 +447,230 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
     );
   }
 
-  /// Reusable header icon with an optional red count badge.
-  Widget _badgeIcon({
+  Widget _countCard({
     required IconData icon,
-    required String tooltip,
     required int count,
-    required VoidCallback onPressed,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
   }) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        IconButton(
-          tooltip: tooltip,
-          onPressed: onPressed,
-          visualDensity: VisualDensity.compact,
-          icon: Icon(icon, color: Colors.white),
-        ),
-        if (count > 0)
-          Positioned(
-            right: 2,
-            top: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
-              decoration: BoxDecoration(
-                color: TamuColors.danger,
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: Colors.white, width: 1.5),
-              ),
-              child: Text(
-                count > 9 ? '9+' : '$count',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
-              ),
-            ),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 78,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: TamuColors.border),
           ),
-      ],
-    );
-  }
-
-  Future<void> _openNotifications() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const notifications.NotificationsScreen()),
-    );
-    if (mounted) {
-      setState(() {
-        _badgesFuture = ApiService.fetchBadges();
-      });
-    }
-  }
-
-  Future<void> _openRequests() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const requests.RequestsScreen()),
-    );
-    if (mounted) {
-      setState(() {
-        _badgesFuture = ApiService.fetchBadges();
-      });
-    }
-  }
-
-  Widget _buildHeader() {
-    final name = ApiService.currentUser?.fullName ?? 'Farmer';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-      decoration: const BoxDecoration(
-        color: TamuColors.primary,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$_greeting 🌾',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 15, color: Color(0xFFA5D6A7))),
-                Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white)),
-                const Text('📍 Tamparuli, Sabah',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, color: Color(0xFFA5D6A7))),
-              ],
-            ),
-          ),
-          _buildHeaderIcons(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryGrid(List<Product> products, int lowCount) {
-    final totalStock = products.fold<int>(0, (sum, p) => sum + p.stockKg);
-    final totalValue =
-        products.fold<double>(0, (sum, p) => sum + (p.pricePerKg * p.stockKg));
-
-    // mainAxisExtent gives every card the SAME fixed height, so the
-    // layout cannot overflow when the device uses a larger text scale.
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: TamuSizes.gap,
-      mainAxisSpacing: TamuSizes.gap,
-      childAspectRatio: 1.45,
-      children: [
-        _summaryCard('Active Listings', '${products.length}',
-            Icons.inventory_2_outlined, TamuColors.primary),
-        _summaryCard('Low Stock', '$lowCount', Icons.warning_amber_outlined,
-            TamuColors.warning),
-        _summaryCard('Total Stock', '$totalStock kg', Icons.scale_outlined,
-            TamuColors.info),
-        _summaryCard('Stock Value', 'RM ${totalValue.toStringAsFixed(0)}',
-            Icons.payments_outlined, TamuColors.primary),
-      ],
-    );
-  }
-
-  Widget _summaryCard(String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: TamuColors.surface,
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(color: TamuColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 4),
-          // FittedBox shrinks long values (e.g. "RM 12345") instead of
-          // letting them overflow the card.
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value,
-                maxLines: 1,
-                style: TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-          ),
-          Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style:
-                  const TextStyle(fontSize: 12, color: TamuColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLowStockAlert(List<Product> lowStock) {
-    return Container(
-      padding: const EdgeInsets.all(TamuSizes.cardPadding),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF8E1),
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(color: TamuColors.warning),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.warning_amber_rounded,
-              color: TamuColors.warning, size: 24),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Low Stock Alert',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
-                Text(
-                  lowStock.map((p) => '${p.name} (${p.stockKg} kg)').join(', '),
-                  style: const TextStyle(
-                      fontSize: 14, color: TamuColors.textSecondary),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      decoration: BoxDecoration(
-        color: TamuColors.surface,
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(color: TamuColors.border),
-      ),
-      child: const Column(
-        children: [
-          Text('🌱', style: TextStyle(fontSize: 36)),
-          SizedBox(height: 8),
-          Text('No crops listed yet',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          SizedBox(height: 4),
-          Text('Tap "Add New Crop" to list your first produce',
-              style: TextStyle(fontSize: 14, color: TamuColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildListingTile(Product p) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: TamuSizes.gap),
-      padding: const EdgeInsets.all(TamuSizes.cardPadding),
-      decoration: BoxDecoration(
-        color: TamuColors.surface,
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
-        border: Border.all(color: TamuColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: TamuColors.lightGreen,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                switch (p.category) {
-                  'vegetable' => '🥬',
-                  'fruit' => '🍌',
-                  'rice' => '🌾',
-                  'herb' => '🌿',
-                  _ => '🌱',
-                },
-                style: const TextStyle(fontSize: 24),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(p.name,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
-                Text(
-                  'RM ${p.pricePerKg.toStringAsFixed(2)} /kg  ·  ${p.stockKg} kg',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: p.isOutOfStock
-                        ? TamuColors.danger
-                        : p.isLowStock
-                            ? TamuColors.warning
-                            : TamuColors.textSecondary,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 27,
+                    height: 27,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, size: 16, color: color),
                   ),
-                ),
-              ],
-            ),
+                  const Spacer(),
+                  Text('$count',
+                      style: TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                          color: color)),
+                ],
+              ),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 11, color: TamuColors.textSecondary)),
+            ],
           ),
-          // Edit + Delete - only visible to the owner, because this whole
-          // screen only ever shows the logged-in farmer's own crops.
-          IconButton(
-            tooltip: 'Edit',
-            onPressed: () => _openEditCrop(p),
-            icon: const Icon(Icons.edit_outlined, color: TamuColors.info),
-          ),
-          IconButton(
-            tooltip: 'Delete',
-            onPressed: () => _confirmDelete(p),
-            icon: const Icon(Icons.delete_outline, color: TamuColors.danger),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildError(String msg) {
-    return ListView(
-      padding: const EdgeInsets.all(24),
+  Widget _buildSectionHeading(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 40),
-        const Icon(Icons.wifi_off, size: 56, color: TamuColors.textSecondary),
-        const SizedBox(height: 12),
-        const Text('Cannot reach the backend',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        const Text('Run: uvicorn main:app --reload',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: TamuColors.textSecondary)),
-        const SizedBox(height: 16),
-        Text(msg.replaceFirst('Exception: ', ''),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: TamuColors.danger)),
-        const SizedBox(height: 16),
-        ElevatedButton(onPressed: _refresh, child: const Text('Try Again')),
+        Text(title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 2),
+        Text(subtitle,
+            style: const TextStyle(fontSize: 11, color: TamuColors.textSecondary)),
       ],
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: _quickAction(
+              Icons.add, 'Add crop', _openAddCrop, TamuColors.primary),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _quickAction(
+              Icons.eco_outlined, 'My listings', _openListings, TamuColors.primary),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _quickAction(Icons.receipt_long_outlined, 'Manage orders',
+              _openOrders, TamuColors.primary),
+        ),
+      ],
+    );
+  }
+
+  Widget _quickAction(
+      IconData icon, String label, VoidCallback onTap, Color color) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 66,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: TamuColors.border),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(height: 4),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNeedsAttentionHeading() {
+    return Row(
+      children: [
+        const Expanded(
+          child: Text('Needs your attention',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        ),
+        TextButton(
+          onPressed: _openOrders,
+          child: const Text('View all'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNeedsAttention() {
+    return FutureBuilder<List<Order>>(
+      future: _attentionOrdersFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const LinearProgressIndicator(minHeight: 2);
+        }
+        if (snapshot.hasError) {
+          return _simpleInfoCard('Unable to load pending orders. Tap View all to retry.');
+        }
+        final orders = snapshot.data ?? [];
+        if (orders.isEmpty) {
+          return _simpleInfoCard('No pending orders right now.');
+        }
+        final order = orders.first;
+        final name = order.productName ?? 'Crop order';
+        return Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: _openOrders,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: TamuColors.border),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: const Icon(Icons.receipt_long_outlined,
+                        size: 18, color: TamuColors.warning),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${formatUnitQuantity(order.quantity, order.unit)} · '
+                          'RM ${order.totalPrice.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontSize: 10, color: TamuColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text('Pending',
+                        style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: TamuColors.warning)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _simpleInfoCard(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: TamuColors.border),
+      ),
+      child: Text(text,
+          style: const TextStyle(fontSize: 12, color: TamuColors.textSecondary)),
     );
   }
 }

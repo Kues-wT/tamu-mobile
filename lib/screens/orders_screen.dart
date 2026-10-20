@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../widgets/farmer_bottom_nav.dart';
 import 'profile_screen.dart' as profile;
 import 'requests_screen.dart' as requests;
 import 'notifications_screen.dart' as notifications;
+import 'login_screen.dart' as login;
+import 'login_screen.dart' as login;
 
 /// Orders list.
 /// Farmers see orders RECEIVED for their crops, with Accept / Reject.
@@ -21,13 +24,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
   String _filter = 'all';
   int? _busyOrderId; // which row is currently saving
 
-  static const _filters = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
+  static const _buyerFilters = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
+  static const _farmerFilters = ['pending', 'confirmed', 'completed', 'cancelled'];
 
   bool get _isFarmer => ApiService.currentUser?.isFarmer ?? false;
 
   @override
   void initState() {
     super.initState();
+    _filter = _isFarmer ? 'pending' : 'all';
     _ordersFuture = ApiService.fetchOrders();
   }
 
@@ -66,7 +71,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Cancel this order?'),
         content: Text(
-          'Order #${order.id} for ${order.quantityKg} kg of '
+          'Order #${order.id} for ${formatUnitQuantity(order.quantity, order.unit)} of '
           '${order.productName ?? "this crop"} will be cancelled.',
           style: const TextStyle(fontSize: 16),
         ),
@@ -103,30 +108,31 @@ class _OrdersScreenState extends State<OrdersScreen> {
     if (mounted) await _refresh();
   }
 
+  void _signInAgain() {
+    ApiService.logout();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const login.LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (ApiService.currentUser == null) {
+      return _buildSessionExpiredScreen();
+    }
     return Scaffold(
       backgroundColor: TamuColors.background,
-      appBar: _isFarmer
-          ? AppBar(
-              title: const Text('Incoming Orders'),
-              actions: [
-                IconButton(
-                  tooltip: 'Refresh',
-                  onPressed: _refresh,
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            )
-          : null,
       body: SafeArea(
-        bottom: _isFarmer,
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            child: Column(
-              children: [
-                if (!_isFarmer) _buildBuyerHeader(),
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                children: [
+                  if (_isFarmer) _buildFarmerHeader() else _buildBuyerHeader(),
                 _buildFilterBar(),
                 Expanded(
                   child: RefreshIndicator(
@@ -134,10 +140,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     child: FutureBuilder<List<Order>>(
                       future: _ordersFuture,
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                              child: CircularProgressIndicator());
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
                         }
                         if (snapshot.hasError) {
                           return _buildError(snapshot.error.toString());
@@ -147,19 +151,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         final orders = _filter == 'all'
                             ? all
                             : all.where((o) => o.status == _filter).toList();
-
                         if (orders.isEmpty) return _buildEmpty();
 
                         if (_isFarmer) {
                           return ListView.builder(
-                            padding: const EdgeInsets.all(TamuSizes.pagePadding),
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
                             itemCount: orders.length,
                             itemBuilder: (context, i) =>
-                                _buildOrderCard(orders[i]),
+                                _buildFarmerOrderCard(orders[i]),
                           );
                         }
 
                         return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                           children: [
                             ...orders.map(_buildBuyerOrderCard),
@@ -171,12 +176,97 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ),
                   ),
                 ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: _isFarmer
+          ? FarmerBottomNav(
+              currentIndex: 2,
+              onTap: (index) {
+                if (index != 2) navigateToFarmerTab(context, index);
+              },
+            )
+          : _buildBuyerBottomNav(),
+    );
+  }
+
+  Widget _buildSessionExpiredScreen() {
+    return Scaffold(
+      backgroundColor: TamuColors.background,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline,
+                    size: 48, color: TamuColors.textSecondary),
+                const SizedBox(height: 12),
+                const Text('Your session has ended',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                const Text(
+                  'Please sign in again to view orders.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: TamuColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _signInAgain,
+                  child: const Text('Sign in again'),
+                ),
               ],
             ),
           ),
         ),
       ),
-      bottomNavigationBar: _isFarmer ? null : _buildBuyerBottomNav(),
+    );
+  }
+
+  Widget _buildFarmerHeader() {
+    return FutureBuilder<List<Order>>(
+      future: _ordersFuture,
+      builder: (context, snapshot) {
+        final pending = (snapshot.data ?? [])
+            .where((order) => order.status == 'pending')
+            .length;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Incoming orders',
+                        style: TextStyle(
+                            fontSize: 21, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text('$pending need attention',
+                        style: const TextStyle(
+                            fontSize: 12, color: TamuColors.textSecondary)),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh orders',
+                onPressed: _refresh,
+                icon: const Icon(Icons.refresh, color: TamuColors.textPrimary),
+              ),
+              IconButton(
+                tooltip: 'Notifications',
+                onPressed: _openNotifications,
+                icon: const Icon(Icons.notifications_none,
+                    color: TamuColors.textPrimary),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -236,7 +326,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            '${order.productName ?? 'Crop'} · ${order.quantityKg} kg',
+            '${order.productName ?? 'Crop'} · ${formatUnitQuantity(order.quantity, order.unit)}',
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 3),
@@ -245,6 +335,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
             style: const TextStyle(
                 fontSize: 11, color: TamuColors.textSecondary),
           ),
+          if (order.status == 'pending' || order.status == 'confirmed') ...[
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => _confirmCancel(order),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: TamuColors.danger,
+                side: const BorderSide(color: TamuColors.danger),
+              ),
+              child: const Text('Cancel order'),
+            ),
+          ],
           if (order.status == 'completed') ...[
             const SizedBox(height: 6),
             const Text('Rate this order',
@@ -359,55 +460,71 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildFilterBar() {
-    final filters = _isFarmer
-        ? _filters
-        : const ['all', 'pending', 'completed'];
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-      child: SizedBox(
-        height: 40,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: filters.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (context, i) {
-            final f = filters[i];
-            final selected = _filter == f;
-            return ChoiceChip(
-              label: Text(
-                f[0].toUpperCase() + f.substring(1),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: selected ? Colors.white : TamuColors.textPrimary,
-                ),
-              ),
-              selected: selected,
-              showCheckmark: false,
-              selectedColor: TamuColors.primary,
-              backgroundColor: Colors.white,
-              side: BorderSide(
-                  color: selected ? TamuColors.primary : TamuColors.border),
-              onSelected: (_) => setState(() {
-                _filter = f;
-              }),
-            );
-          },
-        ),
-      ),
+    return FutureBuilder<List<Order>>(
+      future: _ordersFuture,
+      builder: (context, snapshot) {
+        final all = snapshot.data ?? [];
+        final filters = _isFarmer ? _farmerFilters : _buyerFilters;
+        String labelFor(String status) {
+          final label = status[0].toUpperCase() + status.substring(1);
+          if (_isFarmer &&
+              (status == 'pending' || status == 'confirmed')) {
+            final count = all.where((order) => order.status == status).length;
+            return '$label $count';
+          }
+          return label;
+        }
+
+        return Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          child: SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: filters.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                final status = filters[i];
+                final selected = _filter == status;
+                return ChoiceChip(
+                  label: Text(
+                    labelFor(status),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? Colors.white : TamuColors.textPrimary,
+                    ),
+                  ),
+                  selected: selected,
+                  showCheckmark: false,
+                  selectedColor: _isFarmer ? TamuColors.darkGreen : TamuColors.primary,
+                  backgroundColor: Colors.white,
+                  side: BorderSide(
+                      color: selected ? TamuColors.darkGreen : TamuColors.border),
+                  onSelected: (_) => setState(() => _filter = status),
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildOrderCard(Order o) {
-    final busy = _busyOrderId == o.id;
+  Widget _buildFarmerOrderCard(Order order) {
+    final busy = _busyOrderId == order.id;
+    final quantity = formatUnitQuantity(order.quantity, order.unit);
+    final unitPrice = order.quantity == 0
+        ? 0.0
+        : order.totalPrice / order.quantity;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: TamuSizes.gap),
-      padding: const EdgeInsets.all(TamuSizes.cardPadding),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: TamuColors.surface,
-        borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(color: TamuColors.border),
       ),
       child: Column(
@@ -415,110 +532,130 @@ class _OrdersScreenState extends State<OrdersScreen> {
         children: [
           Row(
             children: [
-              Text('Order #${o.id}',
+              Expanded(
+                child: Text(
+                  'ORDER #TAMU-${order.id.toString().padLeft(4, '0')}',
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold)),
-              const Spacer(),
-              _statusBadge(o.status),
+                      fontSize: 10,
+                      letterSpacing: 0.4,
+                      color: TamuColors.textSecondary),
+                ),
+              ),
+              _statusBadge(order.status),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(o.productName ?? 'Unknown crop',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 2),
-          Text(
-            _isFarmer
-                ? 'Buyer: ${o.buyerName}'
-                : 'Farmer: ${o.farmerName ?? "-"}',
-            style: const TextStyle(fontSize: 14, color: TamuColors.textSecondary),
-          ),
-          const SizedBox(height: 2),
-          Text(_formatDate(o.createdAt),
-              style: const TextStyle(
-                  fontSize: 13, color: TamuColors.textSecondary)),
-          const Divider(height: 20),
+          const SizedBox(height: 3),
+          Text(_formatFarmerOrderDate(order.createdAt),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${o.quantityKg} kg',
-                  style: const TextStyle(fontSize: 16)),
-              Text('RM ${o.totalPrice.toStringAsFixed(2)}',
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: TamuColors.lightGreen,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.eco_outlined,
+                    color: TamuColors.primary, size: 25),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(order.productName ?? 'Crop order',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$quantity × RM ${unitPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontSize: 11, color: TamuColors.textSecondary),
+                    ),
+                    Text('Buyer: ${order.buyerName}',
+                        style: const TextStyle(
+                            fontSize: 10, color: TamuColors.textSecondary)),
+                  ],
+                ),
+              ),
+              Text('RM ${order.totalPrice.toStringAsFixed(2)}',
                   style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: TamuColors.primary)),
+                      color: TamuColors.textPrimary)),
             ],
           ),
           if (busy) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             const Center(child: CircularProgressIndicator()),
-          ] else
-            ..._buildActions(o),
+          ] else if (order.status == 'pending' || order.status == 'confirmed') ...[
+            const Divider(height: 18),
+            ..._buildFarmerActions(order),
+          ],
         ],
       ),
     );
   }
 
-  List<Widget> _buildActions(Order o) {
-    final widgets = <Widget>[];
-
-    if (_isFarmer) {
-      if (o.status == 'pending') {
-        widgets.addAll([
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => _setStatus(o, 'confirmed', 'accepted'),
-                  child: const Text('Accept'),
+  List<Widget> _buildFarmerActions(Order order) {
+    if (order.status == 'pending') {
+      return [
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => _setStatus(order, 'confirmed', 'confirmed'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: TamuColors.lightGreen,
+                  foregroundColor: TamuColors.darkGreen,
                 ),
+                child: const Text('Confirm order'),
               ),
-              const SizedBox(width: TamuSizes.gap),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _setStatus(o, 'cancelled', 'rejected'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: TamuColors.danger,
-                    side: const BorderSide(color: TamuColors.danger),
-                  ),
-                  child: const Text('Reject'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text('Accepting will deduct the stock automatically.',
-              style: TextStyle(fontSize: 12, color: TamuColors.textSecondary)),
-        ]);
-      } else if (o.status == 'confirmed') {
-        widgets.addAll([
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: () => _setStatus(o, 'completed', 'completed'),
-            icon: const Icon(Icons.check_circle_outline),
-            label: const Text('Mark as Completed'),
-          ),
-        ]);
-      }
-    } else {
-      // Buyer can cancel while it is still pending or confirmed.
-      if (o.status == 'pending' || o.status == 'confirmed') {
-        widgets.addAll([
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: () => _confirmCancel(o),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: TamuColors.danger,
-              side: const BorderSide(color: TamuColors.danger),
             ),
-            child: const Text('Cancel Order'),
-          ),
-        ]);
-      }
+            const SizedBox(width: 8),
+            OutlinedButton(
+              onPressed: () => _setStatus(order, 'cancelled', 'cancelled'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: TamuColors.primary,
+                side: const BorderSide(color: TamuColors.border),
+              ),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        const Text('Stock is deducted when you confirm the order.',
+            style: TextStyle(fontSize: 10, color: TamuColors.textSecondary)),
+      ];
     }
+    if (order.status == 'confirmed') {
+      return [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _setStatus(order, 'completed', 'completed'),
+            icon: const Icon(Icons.check_circle_outline),
+            label: const Text('Mark as completed'),
+          ),
+        ),
+      ];
+    }
+    return const [];
+  }
 
-    return widgets;
+  String _formatFarmerOrderDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateUtils.dateOnly(now);
+    final orderDay = DateUtils.dateOnly(date);
+    final time = TimeOfDay.fromDateTime(date).format(context);
+    if (orderDay == today) return 'Today, $time';
+    if (orderDay == today.subtract(const Duration(days: 1))) {
+      return 'Yesterday, $time';
+    }
+    return '${MaterialLocalizations.of(context).formatShortDate(date)}, $time';
   }
 
   Widget _statusBadge(String status) {
@@ -593,6 +730,28 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildError(String msg) {
+    final cleanMessage = msg.replaceFirst('Exception: ', '');
+    if (cleanMessage.toLowerCase().contains('not authenticated') ||
+        cleanMessage.contains('401')) {
+      return ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 55),
+          const Icon(Icons.lock_outline,
+              size: 48, color: TamuColors.textSecondary),
+          const SizedBox(height: 12),
+          const Text('Your session has ended',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          const Text('Sign in again to view your orders.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: TamuColors.textSecondary)),
+          const SizedBox(height: 16),
+          ElevatedButton(onPressed: _signInAgain, child: const Text('Sign in again')),
+        ],
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [

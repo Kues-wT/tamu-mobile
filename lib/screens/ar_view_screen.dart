@@ -139,7 +139,7 @@ class _ArViewScreenState extends State<ArViewScreen> {
                   ],
                 ),
               ),
-              Text('RM ${p.pricePerKg.toStringAsFixed(2)} /kg',
+              Text('RM ${p.pricePerUnit.toStringAsFixed(2)} / ${p.unit}',
                   style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,

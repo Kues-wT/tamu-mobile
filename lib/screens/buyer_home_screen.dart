@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import 'product_detail_screen.dart';
-import 'orders_screen.dart';
+import 'orders_screen.dart' as orders;
 import 'nearby_farms_screen.dart';
-import 'profile_screen.dart';
-import 'notifications_screen.dart';
-import 'requests_screen.dart';
+import 'profile_screen.dart' as profile;
+import 'notifications_screen.dart' as notifications;
+import 'requests_screen.dart' as requests;
 
 /// Buyer marketplace home.
 /// Loads REAL products from the FastAPI backend.
@@ -72,6 +72,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        duration: const Duration(seconds: 2),
         backgroundColor: TamuColors.primary,
         content: Text(
           'Order placed for $orderedName!',
@@ -88,14 +89,14 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
 
   Future<void> _openOrders() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const OrdersScreen()),
+      MaterialPageRoute(builder: (_) => const orders.OrdersScreen()),
     );
     if (mounted) await _refresh();
   }
 
   Future<void> _openProfile() async {
     await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+      MaterialPageRoute(builder: (_) => const profile.ProfileScreen()),
     );
     if (mounted) setState(() {});
   }
@@ -281,7 +282,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
 
   Future<void> _openNotifications() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+      MaterialPageRoute(builder: (_) => const notifications.NotificationsScreen()),
     );
     if (mounted) {
       setState(() {
@@ -292,7 +293,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
 
   Future<void> _openRequests() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const RequestsScreen()),
+      MaterialPageRoute(builder: (_) => const requests.RequestsScreen()),
     );
     if (mounted) {
       setState(() {
@@ -746,7 +747,7 @@ class _ProductCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'RM ${product.pricePerKg.toStringAsFixed(2)} / kg',
+                      'RM ${product.pricePerUnit.toStringAsFixed(2)} / ${product.unit}',
                       style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -754,7 +755,7 @@ class _ProductCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${product.stockKg} kg available',
+                      '${formatUnitQuantity(product.stockQuantity, product.unit)} available',
                       style: const TextStyle(
                           fontSize: 11, color: TamuColors.textSecondary),
                     ),

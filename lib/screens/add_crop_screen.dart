@@ -21,6 +21,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
   late final TextEditingController _stockController;
 
   late String _category;
+  late String _unit;
   DateTime? _availableFrom;
   DateTime? _availableUntil;
   bool _saving = false;
@@ -35,6 +36,24 @@ class _AddCropScreenState extends State<AddCropScreen> {
   double? _uploadedSizeKb;
 
   bool get _isEditing => widget.existing != null;
+  String get _unitPlural => formatUnitQuantity(2, _unit).split(' ').last;
+
+  static const _units = {
+    'kg': 'Kilogram (kg)',
+    'bunch': 'Bunch',
+    'piece': 'Pieces',
+  };
+
+  Map<String, String> get _unitOptions {
+    final options = Map<String, String>.from(_units);
+    final existingUnit = widget.existing?.unit;
+    if (existingUnit != null &&
+        existingUnit.isNotEmpty &&
+        !options.containsKey(existingUnit)) {
+      options[existingUnit] = '${existingUnit[0].toUpperCase()}${existingUnit.substring(1)} (existing)';
+    }
+    return options;
+  }
 
   static const _categories = {
     'vegetable': '🥬 Vegetable',
@@ -49,9 +68,11 @@ class _AddCropScreenState extends State<AddCropScreen> {
     final e = widget.existing;
     _nameController = TextEditingController(text: e?.name ?? '');
     _priceController =
-        TextEditingController(text: e?.pricePerKg.toStringAsFixed(2) ?? '');
-    _stockController = TextEditingController(text: e?.stockKg.toString() ?? '');
+        TextEditingController(text: e?.pricePerUnit.toStringAsFixed(2) ?? '');
+    _stockController =
+        TextEditingController(text: e?.stockQuantity.toString() ?? '');
     _category = e?.category ?? 'vegetable';
+    _unit = e?.unit ?? 'kg';
     _availableFrom = e?.availableFrom;
     _availableUntil = e?.availableUntil;
     _modelKey = e?.modelKey;
@@ -218,8 +239,9 @@ class _AddCropScreenState extends State<AddCropScreen> {
         await ApiService.updateProduct(
           id: widget.existing!.id,
           name: name,
-          pricePerKg: price,
-          stockKg: stock,
+          pricePerUnit: price,
+          stockQuantity: stock,
+          unit: _unit,
           category: _category,
           availableFrom: _availableFrom,
           availableUntil: _availableUntil,
@@ -228,8 +250,9 @@ class _AddCropScreenState extends State<AddCropScreen> {
       } else {
         await ApiService.createProduct(
           name: name,
-          pricePerKg: price,
-          stockKg: stock,
+          pricePerUnit: price,
+          stockQuantity: stock,
+          unit: _unit,
           category: _category,
           availableFrom: _availableFrom,
           availableUntil: _availableUntil,
@@ -310,7 +333,37 @@ class _AddCropScreenState extends State<AddCropScreen> {
                   ),
                   const SizedBox(height: TamuSizes.gap),
 
-                  _label('Price per kg (RM)'),
+                  _label('Sale unit'),
+                  DropdownButtonFormField<String>(
+                    initialValue: _unit,
+                    style: const TextStyle(
+                        fontSize: 16, color: TamuColors.textPrimary),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.scale_outlined),
+                    ),
+                    items: _unitOptions.entries
+                        .map((e) => DropdownMenuItem(
+                              value: e.key,
+                              child: Text(e.value,
+                                  style: const TextStyle(fontSize: 16)),
+                            ))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _unit = v);
+                    },
+                  ),
+                  if (_isEditing)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 5),
+                      child: Text(
+                        'Changing the unit changes how the existing price and stock count are interpreted.',
+                        style: TextStyle(
+                            fontSize: 12, color: TamuColors.textSecondary),
+                      ),
+                    ),
+                  const SizedBox(height: TamuSizes.gap),
+
+                  _label('Price per $_unit (RM)'),
                   TextFormField(
                     controller: _priceController,
                     style: const TextStyle(fontSize: 16),
@@ -333,14 +386,14 @@ class _AddCropScreenState extends State<AddCropScreen> {
                   ),
                   const SizedBox(height: TamuSizes.gap),
 
-                  _label('Stock Available (kg)'),
+                  _label('Stock available ($_unitPlural)'),
                   TextFormField(
                     controller: _stockController,
                     style: const TextStyle(fontSize: 16),
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'e.g. 20',
-                      suffixText: 'kg',
+                      suffixText: _unitPlural,
                       prefixIcon: Icon(Icons.inventory_2_outlined),
                     ),
                     validator: (v) {
@@ -396,7 +449,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed:
-                        _saving ? null : () => Navigator.of(context).pop(false),
+                        _saving ? null : () => Navigator.of(context).pop(),
                     child: const Text('Cancel',
                         style: TextStyle(
                             fontSize: 16, color: TamuColors.textSecondary)),

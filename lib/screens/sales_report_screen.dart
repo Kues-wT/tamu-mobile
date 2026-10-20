@@ -384,7 +384,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                               style: const TextStyle(
                                   fontSize: 16, fontWeight: FontWeight.w600)),
                           Text(
-                            '${c.quantityKg} kg  ·  ${c.orders} order'
+                            '${formatUnitQuantity(c.quantity, c.unit)}  ·  ${c.orders} order'
                             '${c.orders == 1 ? "" : "s"}',
                             style: const TextStyle(
                                 fontSize: 13,

@@ -17,6 +17,18 @@ String? _dateOnlyIso(DateTime? value) {
   return '$year-$month-$day';
 }
 
+String _pluralUnit(String unit) => switch (unit) {
+      'kg' => 'kg',
+      'bunch' => 'bunches',
+      'pack' => 'packs',
+      'piece' => 'pieces',
+      'bag' => 'bags',
+      _ => unit,
+    };
+
+String formatUnitQuantity(int quantity, String unit) =>
+    '$quantity ${quantity == 1 ? unit : _pluralUnit(unit)}';
+
 // ---------------------------------------------------------------- models
 
 class AppUser {
@@ -88,8 +100,9 @@ class Product {
   final int id;
   final String name;
   final String farmerName;
-  final double pricePerKg;
-  final int stockKg;
+  final double pricePerUnit;
+  final int stockQuantity;
+  final String unit;
   final String category;
   final DateTime? availableFrom;
   final DateTime? availableUntil;
@@ -107,8 +120,9 @@ class Product {
     required this.id,
     required this.name,
     required this.farmerName,
-    required this.pricePerKg,
-    required this.stockKg,
+    required this.pricePerUnit,
+    required this.stockQuantity,
+    this.unit = 'kg',
     required this.category,
     this.availableFrom,
     this.availableUntil,
@@ -127,8 +141,11 @@ class Product {
         id: json['id'] as int,
         name: json['name'] as String,
         farmerName: json['farmer_name'] as String,
-        pricePerKg: (json['price_per_kg'] as num).toDouble(),
-        stockKg: json['stock_kg'] as int,
+        pricePerUnit:
+            ((json['price_per_unit'] ?? json['price_per_kg']) as num).toDouble(),
+        stockQuantity:
+            (json['stock_quantity'] ?? json['stock_kg']) as int,
+        unit: json['unit'] as String? ?? 'kg',
         category: json['category'] as String,
         availableFrom: json['available_from'] == null
             ? null
@@ -153,8 +170,8 @@ class Product {
   /// True when the model is the farmer's own photogrammetry scan.
   bool get hasOwnScan => modelSource == 'upload';
 
-  bool get isLowStock => stockKg > 0 && stockKg < 15;
-  bool get isOutOfStock => stockKg <= 0;
+  bool get isLowStock => stockQuantity > 0 && stockQuantity < 15;
+  bool get isOutOfStock => stockQuantity <= 0;
 }
 
 class Order {
@@ -162,7 +179,8 @@ class Order {
   final int productId;
   final int buyerId;
   final String buyerName;
-  final int quantityKg;
+  final int quantity;
+  final String unit;
   final double totalPrice;
   final String status;
   final DateTime createdAt;
@@ -174,7 +192,8 @@ class Order {
     required this.productId,
     required this.buyerId,
     required this.buyerName,
-    required this.quantityKg,
+    required this.quantity,
+    this.unit = 'kg',
     required this.totalPrice,
     required this.status,
     required this.createdAt,
@@ -187,7 +206,8 @@ class Order {
         productId: json['product_id'] as int,
         buyerId: json['buyer_id'] as int,
         buyerName: json['buyer_name'] as String,
-        quantityKg: json['quantity_kg'] as int,
+        quantity: (json['quantity'] ?? json['quantity_kg']) as int,
+        unit: json['unit'] as String? ?? 'kg',
         totalPrice: (json['total_price'] as num).toDouble(),
         status: json['status'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
@@ -216,20 +236,23 @@ class MonthlySales {
 
 class TopCrop {
   final String productName;
-  final int quantityKg;
+  final int quantity;
+  final String unit;
   final double revenue;
   final int orders;
 
   TopCrop({
     required this.productName,
-    required this.quantityKg,
+    required this.quantity,
+    this.unit = 'kg',
     required this.revenue,
     required this.orders,
   });
 
   factory TopCrop.fromJson(Map<String, dynamic> json) => TopCrop(
         productName: json['product_name'] as String,
-        quantityKg: json['quantity_kg'] as int,
+        quantity: (json['quantity'] ?? json['quantity_kg']) as int,
+        unit: json['unit'] as String? ?? 'kg',
         revenue: (json['revenue'] as num).toDouble(),
         orders: json['orders'] as int,
       );
@@ -683,8 +706,9 @@ class ApiService {
   /// POST /products - farmer_name and owner are set by the backend.
   static Future<Product> createProduct({
     required String name,
-    required double pricePerKg,
-    required int stockKg,
+    required double pricePerUnit,
+    required int stockQuantity,
+    required String unit,
     required String category,
     DateTime? availableFrom,
     DateTime? availableUntil,
@@ -696,8 +720,9 @@ class ApiService {
           headers: _headers,
           body: jsonEncode({
             'name': name,
-            'price_per_kg': pricePerKg,
-            'stock_kg': stockKg,
+            'price_per_unit': pricePerUnit,
+            'stock_quantity': stockQuantity,
+            'unit': unit,
             'category': category,
             'available_from': _dateOnlyIso(availableFrom),
             'available_until': _dateOnlyIso(availableUntil),
@@ -716,8 +741,9 @@ class ApiService {
   static Future<Product> updateProduct({
     required int id,
     String? name,
-    double? pricePerKg,
-    int? stockKg,
+    double? pricePerUnit,
+    int? stockQuantity,
+    String? unit,
     String? category,
     DateTime? availableFrom,
     DateTime? availableUntil,
@@ -727,13 +753,12 @@ class ApiService {
         .put(
           Uri.parse('$kBaseUrl/products/$id'),
           headers: _headers,
-          // '?value' means "only include this entry if it is not null".
           body: jsonEncode({
             'name': ?name,
-            'price_per_kg': ?pricePerKg,
-            'stock_kg': ?stockKg,
+            'price_per_unit': ?pricePerUnit,
+            'stock_quantity': ?stockQuantity,
+            'unit': ?unit,
             'category': ?category,
-            // Always send these keys so the farmer can clear an old date.
             'available_from': _dateOnlyIso(availableFrom),
             'available_until': _dateOnlyIso(availableUntil),
             'model_key': ?modelKey,
@@ -776,7 +801,7 @@ class ApiService {
   /// POST /orders - buyer places an order.
   static Future<Order> createOrder({
     required int productId,
-    required int quantityKg,
+    required int quantity,
   }) async {
     final response = await http
         .post(
@@ -784,7 +809,7 @@ class ApiService {
           headers: _headers,
           body: jsonEncode({
             'product_id': productId,
-            'quantity_kg': quantityKg,
+            'quantity': quantity,
           }),
         )
         .timeout(const Duration(seconds: 10));

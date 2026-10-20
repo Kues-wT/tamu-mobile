@@ -65,7 +65,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
     if (!mounted) return;
 
     // Suggest listings that can actually cover the requested amount.
-    final usable = mine.where((p) => p.stockKg >= r.quantityKg).toList();
+    final usable = mine
+        .where((p) => p.unit == 'kg' && p.stockQuantity >= r.quantityKg)
+        .toList();
 
     final choice = await showDialog<_AcceptChoice>(
       context: context,
@@ -97,9 +99,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   child: Text(
                     mine.isEmpty
                         ? 'You have no listings yet.'
-                        : 'None of your listings has ${r.quantityKg} kg in '
-                            'stock. Add stock first, or just accept and '
-                            'arrange it manually.',
+                        : 'Crop requests are measured in kg. Link a kg listing '
+                            'with enough stock, or accept without linking a listing.',
                     style: const TextStyle(fontSize: 13),
                   ),
                 )
@@ -122,9 +123,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                                     fontSize: 15,
                                     fontWeight: FontWeight.w600)),
                             Text(
-                              'RM ${p.pricePerKg.toStringAsFixed(2)}/kg  ·  '
-                              '${p.stockKg} kg in stock  ·  total RM '
-                              '${(p.pricePerKg * r.quantityKg).toStringAsFixed(2)}',
+                              'RM ${p.pricePerUnit.toStringAsFixed(2)}/kg  ·  '
+                              '${p.stockQuantity} kg in stock  ·  total RM '
+                              '${(p.pricePerUnit * r.quantityKg).toStringAsFixed(2)}',
                               style: const TextStyle(
                                   fontSize: 12,
                                   color: TamuColors.textSecondary),
