@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/farmer_bottom_nav.dart';
@@ -32,7 +33,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void initState() {
     super.initState();
     _filter = _isFarmer ? 'pending' : 'all';
-    _ordersFuture = ApiService.fetchOrders();
+    // After a page reload or hot restart the in-memory token is gone, so
+    // skip the request (it would only return 401) and show "Sign in again".
+    _ordersFuture = ApiService.isLoggedIn
+        ? ApiService.fetchOrders()
+        : Future.value(<Order>[]);
   }
 
   Future<void> _refresh() async {
@@ -117,11 +122,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (ApiService.currentUser == null) {
+    if (!ApiService.isLoggedIn || ApiService.currentUser == null) {
       return _buildSessionExpiredScreen();
     }
     return Scaffold(
-      backgroundColor: TamuColors.background,
+      backgroundColor: _isFarmer ? TamuColors.warm : TamuColors.background,
       body: SafeArea(
         bottom: false,
         child: Center(
@@ -155,7 +160,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         if (_isFarmer) {
                           return ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                             itemCount: orders.length,
                             itemBuilder: (context, i) =>
                                 _buildFarmerOrderCard(orders[i]),
@@ -234,7 +239,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             .where((order) => order.status == 'pending')
             .length;
         return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 12, 10),
+          padding: const EdgeInsets.fromLTRB(16, 15, 8, 12),
           child: Row(
             children: [
               Expanded(
@@ -243,8 +248,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   children: [
                     const Text('Incoming orders',
                         style: TextStyle(
-                            fontSize: 21, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 2),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: TamuColors.darkGreen)),
+                    const SizedBox(height: 3),
                     Text('$pending need attention',
                         style: const TextStyle(
                             fontSize: 12, color: TamuColors.textSecondary)),
@@ -475,17 +482,23 @@ class _OrdersScreenState extends State<OrdersScreen> {
         }
 
         return Container(
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          color: _isFarmer ? TamuColors.warm : Colors.white,
+          padding: _isFarmer
+              ? const EdgeInsets.fromLTRB(16, 4, 16, 6)
+              : const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           child: SizedBox(
-            height: 40,
+            height: _isFarmer ? 48 : 40,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: filters.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => SizedBox(width: _isFarmer ? 7 : 8),
               itemBuilder: (context, i) {
                 final status = filters[i];
                 final selected = _filter == status;
+                if (_isFarmer) {
+                  return _buildFarmerChip(labelFor(status), selected,
+                      () => setState(() => _filter = status));
+                }
                 return ChoiceChip(
                   label: Text(
                     labelFor(status),
@@ -511,6 +524,37 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
+  /// Figma ".chips" style: dark pill when selected, white outline otherwise.
+  Widget _buildFarmerChip(String label, bool selected, VoidCallback onTap) {
+    return Center(
+      child: Material(
+        color: selected ? TamuColors.darkGreen : Colors.white,
+        shape: StadiumBorder(
+          side: BorderSide(
+              color: selected ? TamuColors.darkGreen : TamuColors.line),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : TamuColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Figma ".manage-order" card.
   Widget _buildFarmerOrderCard(Order order) {
     final busy = _busyOrderId == order.id;
     final quantity = formatUnitQuantity(order.quantity, order.unit);
@@ -518,88 +562,136 @@ class _OrdersScreenState extends State<OrdersScreen> {
         ? 0.0
         : order.totalPrice / order.quantity;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: TamuColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'ORDER #TAMU-${order.id.toString().padLeft(4, '0')}',
-                  style: const TextStyle(
-                      fontSize: 10,
-                      letterSpacing: 0.4,
-                      color: TamuColors.textSecondary),
-                ),
-              ),
-              _statusBadge(order.status),
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(_formatFarmerOrderDate(order.createdAt),
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: TamuColors.lightGreen,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(Icons.eco_outlined,
-                    color: TamuColors.primary, size: 25),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(order.productName ?? 'Crop order',
+    return Opacity(
+      opacity: order.status == 'cancelled' ? 0.7 : 1,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: TamuColors.line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ORDER #TAMU-${order.id.toString().padLeft(4, '0')}',
                         style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$quantity × RM ${unitPrice.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          fontSize: 11, color: TamuColors.textSecondary),
+                            fontSize: 10,
+                            letterSpacing: 0.4,
+                            color: TamuColors.textSecondary),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(_formatFarmerOrderDate(order.createdAt),
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: TamuColors.darkGreen)),
+                    ],
+                  ),
+                ),
+                _farmerBadge(order.status),
+              ],
+            ),
+            // Product row with a bottom divider (".order-product.compact").
+            Container(
+              margin: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: TamuColors.line)),
+              ),
+              child: Row(
+                children: [
+                  // No crop photos yet, so a leaf tile stands in.
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: TamuColors.lightGreen,
+                      borderRadius: BorderRadius.circular(11),
                     ),
-                    Text('Buyer: ${order.buyerName}',
-                        style: const TextStyle(
-                            fontSize: 10, color: TamuColors.textSecondary)),
-                  ],
-                ),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.eco_outlined,
+                        color: TamuColors.primary, size: 26),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(order.productName ?? 'Crop order',
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$quantity × RM ${unitPrice.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontSize: 12, color: TamuColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text('RM ${order.totalPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: TamuColors.darkGreen)),
+                ],
               ),
-              Text('RM ${order.totalPrice.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: TamuColors.textPrimary)),
-            ],
-          ),
-          if (busy) ...[
-            const SizedBox(height: 10),
-            const Center(child: CircularProgressIndicator()),
-          ] else if (order.status == 'pending' || order.status == 'confirmed') ...[
-            const Divider(height: 18),
-            ..._buildFarmerActions(order),
+            ),
+            // Buyer line sits where Figma shows pickup/delivery; orders do
+            // not record a fulfilment method until checkout is built.
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.person_outline,
+                      size: 22, color: TamuColors.darkGreen),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(order.buyerName,
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 3),
+                        const Text('Buyer',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: TamuColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (busy)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              ..._buildFarmerActions(order),
           ],
-        ],
+        ),
       ),
     );
   }
 
   List<Widget> _buildFarmerActions(Order order) {
+    final shape =
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(15));
+    final label = GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700);
+
     if (order.status == 'pending') {
       return [
         Row(
@@ -608,41 +700,95 @@ class _OrdersScreenState extends State<OrdersScreen> {
               child: ElevatedButton(
                 onPressed: () => _setStatus(order, 'confirmed', 'confirmed'),
                 style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  elevation: 0,
                   backgroundColor: TamuColors.lightGreen,
-                  foregroundColor: TamuColors.darkGreen,
+                  foregroundColor: TamuColors.forestDark,
+                  side: const BorderSide(color: TamuColors.paleBorder),
+                  shape: shape,
+                  textStyle: label,
                 ),
                 child: const Text('Confirm order'),
               ),
             ),
-            const SizedBox(width: 8),
-            OutlinedButton(
-              onPressed: () => _setStatus(order, 'cancelled', 'cancelled'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: TamuColors.primary,
-                side: const BorderSide(color: TamuColors.border),
+            const SizedBox(width: 7),
+            SizedBox(
+              width: 96,
+              child: OutlinedButton(
+                onPressed: () => _confirmCancel(order),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  // The theme's default side padding is too wide for a
+                  // 96px button and made "Cancel" wrap onto two lines.
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  foregroundColor: TamuColors.primary,
+                  side: const BorderSide(color: TamuColors.line),
+                  shape: shape,
+                  textStyle: label,
+                ),
+                child: const Text('Cancel'),
               ),
-              child: const Text('Cancel'),
             ),
           ],
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 6),
         const Text('Stock is deducted when you confirm the order.',
-            style: TextStyle(fontSize: 10, color: TamuColors.textSecondary)),
+            style: TextStyle(fontSize: 11, color: TamuColors.textSecondary)),
       ];
     }
     if (order.status == 'confirmed') {
       return [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => _setStatus(order, 'completed', 'completed'),
-            icon: const Icon(Icons.check_circle_outline),
-            label: const Text('Mark as completed'),
+        ElevatedButton(
+          onPressed: () => _setStatus(order, 'completed', 'completed'),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            backgroundColor: TamuColors.primary,
+            foregroundColor: Colors.white,
+            shape: shape,
+            textStyle: label,
+          ),
+          child: const Text('Mark as completed'),
+        ),
+      ];
+    }
+    if (order.status == 'completed') {
+      return [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: TamuColors.lightGreen,
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.check, size: 18, color: TamuColors.primary),
+              SizedBox(width: 8),
+              Text('Order completed.',
+                  style: TextStyle(fontSize: 12, color: TamuColors.primary)),
+            ],
           ),
         ),
       ];
     }
     return const [];
+  }
+
+  /// Figma badge tones: amber = pending, green = confirmed/completed,
+  /// grey = cancelled.
+  Widget _farmerBadge(String status) {
+    final (Color bg, Color fg, String label) = switch (status) {
+      'pending' => (TamuColors.amberBg, TamuColors.amber, 'Pending'),
+      'confirmed' => (TamuColors.lightGreen, TamuColors.forestDark, 'Confirmed'),
+      'completed' => (TamuColors.lightGreen, TamuColors.forestDark, 'Completed'),
+      _ => (TamuColors.greyBadgeBg, TamuColors.greyBadgeText, 'Cancelled'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(30)),
+      child: Text(label,
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: fg)),
+    );
   }
 
   String _formatFarmerOrderDate(DateTime date) {
@@ -702,6 +848,38 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildEmpty() {
+    if (_isFarmer) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(30, 90, 30, 30),
+        children: [
+          Center(
+            child: Container(
+              width: 70,
+              height: 70,
+              decoration: const BoxDecoration(
+                color: Color(0xFFE6EAE5),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.receipt_long_outlined,
+                  size: 34, color: Color(0xFF6F7B70)),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text('No $_filter orders',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: TamuColors.darkGreen)),
+          const SizedBox(height: 7),
+          const Text('Orders from buyers will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 14, height: 1.5, color: TamuColors.textSecondary)),
+        ],
+      );
+    }
     return ListView(
       children: [
         const SizedBox(height: 80),

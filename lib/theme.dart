@@ -17,6 +17,16 @@ class TamuColors {
   static const warning = Color(0xFFF9A825);
   static const info = Color(0xFF1565C0);
   static const border = Color(0xFFE0E0E0);
+
+  // Extra tokens from the Figma Make prototype (farmer screens).
+  static const forestDark = Color(0xFF1F5B23);
+  static const warm = Color(0xFFF6F6F2); // Screen background
+  static const line = Color(0xFFDFE4DD); // Card borders
+  static const paleBorder = Color(0xFFB8D7BA);
+  static const amber = Color(0xFFAD6200); // Pending text
+  static const amberBg = Color(0xFFFFF3DD);
+  static const greyBadgeBg = Color(0xFFECEEEB);
+  static const greyBadgeText = Color(0xFF666666);
 }
 
 /// Spacing + sizing rules (accessibility for older rural users).
