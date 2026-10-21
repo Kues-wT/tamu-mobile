@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../admin/admin_shell.dart';
 import '../widgets/auth_widgets.dart';
 import 'buyer_home_screen.dart';
 import 'farmer_home_screen.dart';
@@ -44,8 +45,11 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       // The ROLE comes from the database now, not from a button.
-      final Widget destination =
-          user.isFarmer ? const FarmerHomeScreen() : const BuyerHomeScreen();
+      final Widget destination = user.isAdmin
+          ? const AdminShell()
+          : user.isFarmer
+              ? const FarmerHomeScreen()
+              : const BuyerHomeScreen();
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => destination),

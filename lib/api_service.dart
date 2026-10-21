@@ -8,7 +8,11 @@ import 'package:http/http.dart' as http;
 /// Real Android phone on Wi-Fi -> `http://<your-laptop-IP>:8000`
 ///   (find it with `ipconfig`, look for IPv4 Address, e.g. 192.168.0.12)
 /// Android emulator            -> http://10.0.2.2:8000
-const String kBaseUrl = 'http://10.115.117.118:8000';
+/// Override without editing: flutter run --dart-define=TAMU_API=http://...
+const String kBaseUrl = String.fromEnvironment(
+  'TAMU_API',
+  defaultValue: 'http://10.115.117.118:8000',
+);
 
 /// Makes a server file URL usable by the app. The backend sends product
 /// photos as full URLs, but order photos as paths like "/photos/x.jpg".
@@ -79,6 +83,7 @@ class AppUser {
 
   bool get isFarmer => role == 'farmer';
   bool get isBuyer => role == 'buyer';
+  bool get isAdmin => role == 'admin';
 }
 
 class UserStats {
@@ -631,6 +636,10 @@ class ApiService {
         'Content-Type': 'application/json',
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
+
+  // FR1 Admin: the admin panel (lib/admin/) makes its own requests.
+  static Map<String, String> get authHeaders => _headers;
+  static String errorMessage(http.Response r) => _errorMessage(r);
 
   /// Pulls the human-readable message out of a FastAPI error response.
   static String _errorMessage(http.Response r, {bool sessionCheck = true}) {

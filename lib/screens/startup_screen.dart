@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../admin/admin_shell.dart';
 import 'buyer_home_screen.dart';
 import 'farmer_home_screen.dart';
 import 'login_screen.dart';
@@ -32,8 +33,11 @@ class _StartupScreenState extends State<StartupScreen> {
     switch (result) {
       case SessionRestore.restored:
         final user = ApiService.currentUser!;
-        _replaceWith(
-            user.isFarmer ? const FarmerHomeScreen() : const BuyerHomeScreen());
+        _replaceWith(user.isAdmin
+            ? const AdminShell()
+            : user.isFarmer
+                ? const FarmerHomeScreen()
+                : const BuyerHomeScreen());
       case SessionRestore.offline:
         setState(() => _offline = true);
       case SessionRestore.expired:
