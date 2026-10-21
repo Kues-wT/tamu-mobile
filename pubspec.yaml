@@ -42,6 +42,10 @@ dependencies:
   latlong2: ^0.10.1
   flutter_secure_storage: ^11.2.0
   image_picker: ^1.2.4
+  webview_flutter: ^4.14.1
+  webview_flutter_android: ^4.14.1
+  permission_handler: ^12.0.1  # 13.x needs Android SDK 37
+  url_launcher: ^6.3.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -63,6 +67,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # FR4 marker AR page, TAMU card image and its AR.js pattern.
+  assets:
+    - assets/ar/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

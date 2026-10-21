@@ -1,0 +1,70 @@
+<!doctype html>
+<!--
+  TAMU FR4: marker-based WebAR for phones without Google ARCore.
+  The app loads this page into an in-app WebView and fills in the
+  {{...}} placeholders: the crop model, the marker pattern and the scale
+  that turns metres into marker widths (life size). AR.js finds the
+  printed TAMU card in the camera view and stands the crop on it.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<script src="https://cdn.jsdelivr.net/npm/aframe@1.3.0/dist/aframe-v1.3.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.5/aframe/build/aframe-ar.js"></script>
+<style>
+  /* Black only on <html>: a body background would cover the camera
+     picture, which AR.js places behind everything (z-index -2). */
+  html { background: #000; }
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: sans-serif; }
+  #hint {
+    position: fixed; left: 12px; right: 12px; bottom: 18px; z-index: 10;
+    padding: 12px 14px; border-radius: 14px; text-align: center;
+    background: rgba(26, 46, 26, .85); color: #fff; font-size: 15px; line-height: 1.4;
+  }
+  #hint.found { background: rgba(46, 125, 50, .85); }
+</style>
+</head>
+<body>
+<a-scene embedded vr-mode-ui="enabled: false" loading-screen="enabled: false"
+  renderer="logarithmicDepthBuffer: true; precision: medium; colorManagement: true"
+  arjs="{{SOURCE}}; debugUIEnabled: false; detectionMode: mono; patternRatio: 0.5">
+  <a-entity light="type: ambient; intensity: 0.9"></a-entity>
+  <a-entity light="type: directional; intensity: 0.7" position="1 2 1"></a-entity>
+  <a-marker id="card" type="pattern" smooth="true" smoothCount="5" emitevents="true">
+    <a-entity id="crop" scale="{{SCALE}} {{SCALE}} {{SCALE}}"></a-entity>
+  </a-marker>
+  <a-entity camera></a-entity>
+</a-scene>
+<div id="hint">Point the camera at the TAMU card</div>
+<script>
+  // Base64 data from the app -> blob URLs (more reliable than long data: URLs).
+  function blobUrl(b64, type) {
+    var bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return URL.createObjectURL(new Blob([bytes], { type: type }));
+  }
+  function tell(msg) {  // to the Flutter app, when running inside it
+    if (window.TamuAR) TamuAR.postMessage(msg);
+  }
+  var card = document.getElementById('card');
+  var crop = document.getElementById('crop');
+  var hint = document.getElementById('hint');
+  card.setAttribute('url', blobUrl('{{PATT_B64}}', 'text/plain'));
+  crop.setAttribute('gltf-model', blobUrl('{{MODEL_B64}}', 'model/gltf-binary'));
+  crop.addEventListener('model-loaded', function () { tell('model-loaded'); });
+  crop.addEventListener('model-error', function () { tell('model-error'); });
+  card.addEventListener('markerFound', function () {
+    hint.textContent = '{{NAME}} at real size on the TAMU card';
+    hint.className = 'found';
+    tell('marker-found');
+  });
+  card.addEventListener('markerLost', function () {
+    hint.textContent = 'Point the camera at the TAMU card';
+    hint.className = '';
+  });
+  window.addEventListener('arjs-video-loaded', function () { tell('camera-on'); });
+  window.addEventListener('camera-error', function () { tell('camera-error'); });
+</script>
+</body>
+</html>
