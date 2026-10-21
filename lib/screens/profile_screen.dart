@@ -514,7 +514,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (yes != true || !mounted) return;
 
-    ApiService.logout();
+    await ApiService.logout(); // also forgets the saved login
+    if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const login.LoginScreen()),
       (route) => false,

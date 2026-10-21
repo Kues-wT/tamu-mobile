@@ -149,8 +149,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
-  void _signInAgain() {
-    ApiService.logout();
+  Future<void> _signInAgain() async {
+    await ApiService.logout();
+    if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const login.LoginScreen()),
       (route) => false,

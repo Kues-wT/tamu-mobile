@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 /// Where the FastAPI backend lives.
@@ -530,12 +531,68 @@ const double kTamparuliLng = 116.2757;
 
 // --------------------------------------------------------------- service
 
+/// Result of trying to reopen a saved login at app start.
+enum SessionRestore { restored, none, expired, offline }
+
 class ApiService {
   /// The logged-in user's token. Set by login(), cleared by logout().
   static String? _token;
   static AppUser? currentUser;
 
   static bool get isLoggedIn => _token != null;
+
+  // FR1: the token is kept in the phone's secure storage (Android Keystore;
+  // browser storage on web) so a restart does not sign the user out.
+  // The password is never stored.
+  static const _storage = FlutterSecureStorage();
+  static const _tokenKey = 'tamu_access_token';
+
+  static Future<void> _saveToken(String token) async {
+    try {
+      await _storage.write(key: _tokenKey, value: token);
+    } catch (_) {
+      // Storage can fail (e.g. private browser window). Login still works
+      // for this run; the user just signs in again next time.
+    }
+  }
+
+  static Future<void> _clearSavedToken() async {
+    try {
+      await _storage.delete(key: _tokenKey);
+    } catch (_) {}
+  }
+
+  /// GET /me with the saved token. Called once by the startup screen.
+  static Future<SessionRestore> restoreSession() async {
+    String? saved;
+    try {
+      saved = await _storage.read(key: _tokenKey);
+    } catch (_) {
+      return SessionRestore.none;
+    }
+    if (saved == null || saved.isEmpty) return SessionRestore.none;
+
+    try {
+      final response = await http.get(
+        Uri.parse('$kBaseUrl/me'),
+        headers: {'Authorization': 'Bearer $saved'},
+      ).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        _token = saved;
+        currentUser = AppUser.fromJson(jsonDecode(response.body));
+        return SessionRestore.restored;
+      }
+      if (response.statusCode == 401) {
+        // Expired (7 days) or the account no longer exists.
+        await _clearSavedToken();
+        return SessionRestore.expired;
+      }
+      return SessionRestore.offline;
+    } catch (_) {
+      // Backend not running / wrong Wi-Fi. Keep the token for a retry.
+      return SessionRestore.offline;
+    }
+  }
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -574,6 +631,7 @@ class ApiService {
       final data = jsonDecode(response.body);
       _token = data['access_token'] as String;
       currentUser = AppUser.fromJson(data['user']);
+      await _saveToken(_token!);
       return currentUser!;
     }
     // A 401 here means wrong email/password, so show the backend's own text.
@@ -606,14 +664,17 @@ class ApiService {
       final data = jsonDecode(response.body);
       _token = data['access_token'] as String;
       currentUser = AppUser.fromJson(data['user']);
+      await _saveToken(_token!);
       return currentUser!;
     }
     throw Exception(_errorMessage(response));
   }
 
-  static void logout() {
+  /// Clears the session in memory straight away, then the saved token.
+  static Future<void> logout() async {
     _token = null;
     currentUser = null;
+    await _clearSavedToken();
   }
 
   /// PUT /me - update your own name / phone.
