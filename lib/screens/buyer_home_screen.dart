@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../widgets/crop_photo.dart';
 import 'product_detail_screen.dart';
 import 'orders_screen.dart' as orders;
 import 'nearby_farms_screen.dart';
@@ -632,13 +633,6 @@ class _ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAvailable = _availabilityLabel == 'Available';
-    final imageEmoji = switch (product.category) {
-      'vegetable' => '🥬',
-      'fruit' => '🍌',
-      'rice' => '🌾',
-      'herb' => '🌿',
-      _ => '🌱',
-    };
 
     return Material(
       color: Colors.white,
@@ -656,15 +650,12 @@ class _ProductCard extends StatelessWidget {
             children: [
               Stack(
                 children: [
-                  Container(
+                  CropPhoto(
+                    photoUrl: product.photoUrl,
+                    category: product.category,
                     width: 82,
                     height: 82,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: TamuColors.lightGreen,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Text(imageEmoji, style: const TextStyle(fontSize: 37)),
+                    emojiSize: 37,
                   ),
                   if (product.hasArModel)
                     Positioned(

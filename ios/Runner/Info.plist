@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>TAMU uses the camera so farmers can take a photo of their crop for a listing.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TAMU lets farmers choose a crop photo from their gallery for a listing.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

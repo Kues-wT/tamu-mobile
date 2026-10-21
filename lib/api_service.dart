@@ -8,7 +8,15 @@ import 'package:http/http.dart' as http;
 /// Real Android phone on Wi-Fi -> `http://<your-laptop-IP>:8000`
 ///   (find it with `ipconfig`, look for IPv4 Address, e.g. 192.168.0.12)
 /// Android emulator            -> http://10.0.2.2:8000
-const String kBaseUrl = 'http://127.0.0.1:8000';
+const String kBaseUrl = 'http://10.115.117.118:8000';
+
+/// Makes a server file URL usable by the app. The backend sends product
+/// photos as full URLs, but order photos as paths like "/photos/x.jpg".
+String? resolveServerUrl(String? url) {
+  if (url == null || url.isEmpty) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return '$kBaseUrl$url';
+}
 
 String? _dateOnlyIso(DateTime? value) {
   if (value == null) return null;
@@ -116,6 +124,7 @@ class Product {
   final String? modelUrl;     // FR4 resolved URL
   final String? modelFile;    // FR4 uploaded scan filename
   final String? modelSource;  // "catalogue" | "upload" | null
+  final String? photoUrl;     // FR2 crop photo, null = placeholder
 
   Product({
     required this.id,
@@ -136,6 +145,7 @@ class Product {
     this.modelUrl,
     this.modelFile,
     this.modelSource,
+    this.photoUrl,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -163,6 +173,7 @@ class Product {
         modelUrl: json['model_url'] as String?,
         modelFile: json['model_file'] as String?,
         modelSource: json['model_source'] as String?,
+        photoUrl: json['photo_url'] as String?,
       );
 
   /// True when this listing has a 3D model that can be viewed in AR.
@@ -187,6 +198,7 @@ class Order {
   final DateTime createdAt;
   final String? productName;
   final String? farmerName;
+  final String? productPhotoUrl; // FR2, current photo of the crop
   final String fulfilmentMethod; // pickup | delivery
   final String? deliveryAddress;
   final double? deliveryLatitude; // optional delivery map pin
@@ -206,6 +218,7 @@ class Order {
     required this.createdAt,
     this.productName,
     this.farmerName,
+    this.productPhotoUrl,
     this.fulfilmentMethod = 'pickup',
     this.deliveryAddress,
     this.deliveryLatitude,
@@ -243,6 +256,7 @@ class Order {
         createdAt: DateTime.parse(json['created_at'] as String),
         productName: json['product_name'] as String?,
         farmerName: json['farmer_name'] as String?,
+        productPhotoUrl: json['product_photo_url'] as String?,
         fulfilmentMethod: json['fulfilment_method'] as String? ?? 'pickup',
         deliveryAddress: json['delivery_address'] as String?,
         deliveryLatitude: (json['delivery_latitude'] as num?)?.toDouble(),
@@ -1012,6 +1026,42 @@ class ApiService {
       return ModelUploadResult.fromJson(jsonDecode(response.body));
     }
     throw Exception(_errorMessage(response));
+  }
+
+  /// POST /products/{id}/photo - FR2 add or replace the crop photo.
+  static Future<Product> uploadProductPhoto({
+    required int productId,
+    required String filename,
+    required List<int> bytes,
+  }) async {
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$kBaseUrl/products/$productId/photo'),
+    );
+    if (_token != null) {
+      req.headers['Authorization'] = 'Bearer $_token';
+    }
+    req.files.add(
+      http.MultipartFile.fromBytes('file', bytes, filename: filename),
+    );
+
+    final streamed = await req.send().timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamed);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return Product.fromJson(jsonDecode(response.body));
+    }
+    throw Exception(_errorMessage(response));
+  }
+
+  /// DELETE /products/{id}/photo - back to the placeholder.
+  static Future<void> deleteProductPhoto(int productId) async {
+    final response = await http
+        .delete(Uri.parse('$kBaseUrl/products/$productId/photo'),
+            headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode != 204 && response.statusCode != 200) {
+      throw Exception(_errorMessage(response));
+    }
   }
 
   /// DELETE /products/{id}/model - remove the uploaded scan.

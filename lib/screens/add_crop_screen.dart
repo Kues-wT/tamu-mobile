@@ -1,7 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../theme.dart';
 import '../api_service.dart';
+import '../widgets/crop_photo.dart';
 
 /// Add a new crop, or edit an existing one.
 /// Pass `existing` to switch the form into edit mode.
@@ -32,8 +37,17 @@ class _AddCropScreenState extends State<AddCropScreen> {
 
   // FR4: the farmer's own photogrammetry scan.
   bool _uploading = false;
-  String? _uploadedName;      // set once a scan exists on the server
+  String? _uploadedName; // set once a scan exists on the server
   double? _uploadedSizeKb;
+
+  // FR2: crop photo. A new pick is held here and uploaded on Save.
+  Uint8List? _newPhotoBytes;
+  String? _newPhotoName;
+  bool _removePhoto = false;
+
+  String? get _existingPhotoUrl =>
+      _removePhoto ? null : widget.existing?.photoUrl;
+  bool get _hasPhoto => _newPhotoBytes != null || _existingPhotoUrl != null;
 
   bool get _isEditing => widget.existing != null;
   String get _unitPlural => formatUnitQuantity(2, _unit).split(' ').last;
@@ -50,7 +64,8 @@ class _AddCropScreenState extends State<AddCropScreen> {
     if (existingUnit != null &&
         existingUnit.isNotEmpty &&
         !options.containsKey(existingUnit)) {
-      options[existingUnit] = '${existingUnit[0].toUpperCase()}${existingUnit.substring(1)} (existing)';
+      options[existingUnit] =
+          '${existingUnit[0].toUpperCase()}${existingUnit.substring(1)} (existing)';
     }
     return options;
   }
@@ -67,10 +82,12 @@ class _AddCropScreenState extends State<AddCropScreen> {
     super.initState();
     final e = widget.existing;
     _nameController = TextEditingController(text: e?.name ?? '');
-    _priceController =
-        TextEditingController(text: e?.pricePerUnit.toStringAsFixed(2) ?? '');
-    _stockController =
-        TextEditingController(text: e?.stockQuantity.toString() ?? '');
+    _priceController = TextEditingController(
+      text: e?.pricePerUnit.toStringAsFixed(2) ?? '',
+    );
+    _stockController = TextEditingController(
+      text: e?.stockQuantity.toString() ?? '',
+    );
     _category = e?.category ?? 'vegetable';
     _unit = e?.unit ?? 'kg';
     _availableFrom = e?.availableFrom;
@@ -162,12 +179,87 @@ class _AddCropScreenState extends State<AddCropScreen> {
     }
   }
 
+  /// FR2: camera or gallery. The picker shrinks the photo first so the
+  /// upload stays small on mobile data (well under the 5 MB limit).
+  Future<void> _pickPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 80,
+      );
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _newPhotoBytes = bytes;
+        _newPhotoName = picked.name;
+        _removePhoto = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      _snack('Could not open that photo. Try another one.', TamuColors.danger);
+    }
+  }
+
+  void _clearPhoto() {
+    setState(() {
+      _newPhotoBytes = null;
+      _newPhotoName = null;
+      _removePhoto = widget.existing?.photoUrl != null;
+    });
+  }
+
+  /// Uploads or removes the photo after the crop itself is saved.
+  /// Returns an error message, or null when everything went fine.
+  Future<String?> _syncPhoto(int productId) async {
+    try {
+      if (_newPhotoBytes != null) {
+        await ApiService.uploadProductPhoto(
+          productId: productId,
+          filename: _newPhotoName ?? 'crop.jpg',
+          bytes: _newPhotoBytes!,
+        );
+      } else if (_removePhoto) {
+        await ApiService.deleteProductPhoto(productId);
+      }
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
+    }
+  }
+
   void _snack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: color,
-        content: Text(msg,
-            style: const TextStyle(fontSize: 15, color: Colors.white)),
+        content: Text(
+          msg,
+          style: const TextStyle(fontSize: 15, color: Colors.white),
+        ),
       ),
     );
   }
@@ -186,7 +278,9 @@ class _AddCropScreenState extends State<AddCropScreen> {
       initialDate: initial,
       firstDate: today,
       lastDate: DateTime(today.year + 5),
-      helpText: isFrom ? 'When will this crop be available?' : 'Last day this crop is available',
+      helpText: isFrom
+          ? 'When will this crop be available?'
+          : 'Last day this crop is available',
     );
     if (picked == null) return;
 
@@ -199,17 +293,66 @@ class _AddCropScreenState extends State<AddCropScreen> {
     });
   }
 
+  /// Full-width date box: label on top, the chosen date underneath, so
+  /// the whole date is readable on a narrow phone.
   Widget _availabilityButton({required bool isFrom}) {
     final value = isFrom ? _availableFrom : _availableUntil;
     final label = isFrom ? 'Available from' : 'Available until';
-    return OutlinedButton.icon(
-      onPressed: () => _chooseAvailabilityDate(isFrom: isFrom),
-      icon: const Icon(Icons.calendar_today_outlined, size: 18),
-      label: Text(
-        value == null ? label : '$label: ${_formatDate(value)}',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 13),
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: value == null ? TamuColors.border : TamuColors.primary,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _chooseAvailabilityDate(isFrom: isFrom),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 56),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.calendar_today_outlined,
+                size: 20,
+                color: TamuColors.primary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: TamuColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value == null
+                          ? 'Tap to choose a date'
+                          : _formatDate(value),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: value == null
+                            ? FontWeight.w400
+                            : FontWeight.w700,
+                        color: value == null
+                            ? TamuColors.hint
+                            : TamuColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: TamuColors.textSecondary),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -219,8 +362,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
     if (_availableFrom != null &&
         _availableUntil != null &&
         _availableUntil!.isBefore(_availableFrom!)) {
-      _snack('Available until must be on or after available from.',
-          TamuColors.danger);
+      _snack(
+        'Available until must be on or after available from.',
+        TamuColors.danger,
+      );
       return;
     }
 
@@ -235,7 +380,9 @@ class _AddCropScreenState extends State<AddCropScreen> {
     debugPrint('SAVE: starting request for "$name"');
 
     try {
+      final int productId;
       if (_isEditing) {
+        productId = widget.existing!.id;
         await ApiService.updateProduct(
           id: widget.existing!.id,
           name: name,
@@ -248,7 +395,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
           modelKey: _modelKey,
         );
       } else {
-        await ApiService.createProduct(
+        final created = await ApiService.createProduct(
           name: name,
           pricePerUnit: price,
           stockQuantity: stock,
@@ -258,11 +405,27 @@ class _AddCropScreenState extends State<AddCropScreen> {
           availableUntil: _availableUntil,
           modelKey: _modelKey,
         );
+        productId = created.id;
       }
+
+      // The crop is saved either way; a photo problem must not make the
+      // farmer save again (which would create a duplicate listing).
+      final photoError = await _syncPhoto(productId);
 
       debugPrint('SAVE: request finished OK, popping screen');
 
       if (!mounted) return;
+      if (photoError != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: TamuColors.warning,
+            content: Text(
+              'Crop saved, but the photo was not uploaded: $photoError',
+              style: const TextStyle(fontSize: 14, color: Colors.white),
+            ),
+          ),
+        );
+      }
       // Hand the result back. The dashboard shows the success message,
       // so nothing is attached to this screen while it is closing.
       Navigator.of(context).pop(name);
@@ -273,8 +436,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: TamuColors.danger,
-          content: Text(e.toString().replaceFirst('Exception: ', ''),
-              style: const TextStyle(fontSize: 14, color: Colors.white)),
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+            style: const TextStyle(fontSize: 14, color: Colors.white),
+          ),
         ),
       );
     }
@@ -294,6 +459,8 @@ class _AddCropScreenState extends State<AddCropScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(TamuSizes.pagePadding),
                 children: [
+                  _buildPhotoPicker(),
+                  const SizedBox(height: 20),
                   _buildScanUploader(),
                   const SizedBox(height: TamuSizes.gap),
                   _buildModelPicker(),
@@ -318,16 +485,22 @@ class _AddCropScreenState extends State<AddCropScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: _category,
                     style: const TextStyle(
-                        fontSize: 16, color: TamuColors.textPrimary),
+                      fontSize: 16,
+                      color: TamuColors.textPrimary,
+                    ),
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.category_outlined),
                     ),
                     items: _categories.entries
-                        .map((e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text(e.value,
-                                  style: const TextStyle(fontSize: 16)),
-                            ))
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(
+                              e.value,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        )
                         .toList(),
                     onChanged: (v) => setState(() => _category = v!),
                   ),
@@ -337,16 +510,22 @@ class _AddCropScreenState extends State<AddCropScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: _unit,
                     style: const TextStyle(
-                        fontSize: 16, color: TamuColors.textPrimary),
+                      fontSize: 16,
+                      color: TamuColors.textPrimary,
+                    ),
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.scale_outlined),
                     ),
                     items: _unitOptions.entries
-                        .map((e) => DropdownMenuItem(
-                              value: e.key,
-                              child: Text(e.value,
-                                  style: const TextStyle(fontSize: 16)),
-                            ))
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(
+                              e.value,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        )
                         .toList(),
                     onChanged: (v) {
                       if (v != null) setState(() => _unit = v);
@@ -358,7 +537,9 @@ class _AddCropScreenState extends State<AddCropScreen> {
                       child: Text(
                         'Changing the unit changes how the existing price and stock count are interpreted.',
                         style: TextStyle(
-                            fontSize: 12, color: TamuColors.textSecondary),
+                          fontSize: 12,
+                          color: TamuColors.textSecondary,
+                        ),
                       ),
                     ),
                   const SizedBox(height: TamuSizes.gap),
@@ -367,8 +548,9 @@ class _AddCropScreenState extends State<AddCropScreen> {
                   TextFormField(
                     controller: _priceController,
                     style: const TextStyle(fontSize: 16),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: const InputDecoration(
                       hintText: 'e.g. 3.50',
                       prefixText: 'RM ',
@@ -408,28 +590,27 @@ class _AddCropScreenState extends State<AddCropScreen> {
                   ),
                   const SizedBox(height: TamuSizes.gap),
                   _label('Crop Availability (optional)'),
-                  Row(
-                    children: [
-                      Expanded(child: _availabilityButton(isFrom: true)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _availabilityButton(isFrom: false)),
-                    ],
-                  ),
+                  _availabilityButton(isFrom: true),
+                  const SizedBox(height: 8),
+                  _availabilityButton(isFrom: false),
                   const SizedBox(height: 4),
                   const Text(
                     'Leave dates blank for crops available immediately with no planned end date.',
                     style: TextStyle(
-                        fontSize: 12, color: TamuColors.textSecondary),
+                      fontSize: 12,
+                      color: TamuColors.textSecondary,
+                    ),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: (_availableFrom == null && _availableUntil == null)
+                      onPressed:
+                          (_availableFrom == null && _availableUntil == null)
                           ? null
                           : () => setState(() {
-                                _availableFrom = null;
-                                _availableUntil = null;
-                              }),
+                              _availableFrom = null;
+                              _availableUntil = null;
+                            }),
                       child: const Text('Clear dates'),
                     ),
                   ),
@@ -442,17 +623,24 @@ class _AddCropScreenState extends State<AddCropScreen> {
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : Text(_isEditing ? 'Save Changes' : 'Save Crop'),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
-                    onPressed:
-                        _saving ? null : () => Navigator.of(context).pop(),
-                    child: const Text('Cancel',
-                        style: TextStyle(
-                            fontSize: 16, color: TamuColors.textSecondary)),
+                    onPressed: _saving
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: TamuColors.textSecondary,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -464,13 +652,121 @@ class _AddCropScreenState extends State<AddCropScreen> {
   }
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(text,
-            style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: TamuColors.textPrimary)),
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: TamuColors.textPrimary,
+      ),
+    ),
+  );
+
+  /// FR2: Figma ".photo-upload" box, or a preview with Change / Remove.
+  Widget _buildPhotoPicker() {
+    if (!_hasPhoto) {
+      return Material(
+        color: TamuColors.lightGreen,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _saving ? null : _pickPhoto,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 100),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFA8B8A7), width: 1.5),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.photo_camera_outlined,
+                  size: 28,
+                  color: TamuColors.primary,
+                ),
+                SizedBox(width: 10),
+                // Flexible lets the text wrap instead of overflowing.
+                Flexible(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Add crop photo',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: TamuColors.primary,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Optional · helps buyers trust your listing',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: TamuColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: _newPhotoBytes != null
+              ? Image.memory(
+                  _newPhotoBytes!,
+                  height: 180,
+                  fit: BoxFit.cover,
+                  semanticLabel: 'New crop photo',
+                )
+              : CropPhoto(
+                  photoUrl: _existingPhotoUrl,
+                  category: _category,
+                  height: 180,
+                  radius: 0,
+                  emojiSize: 60,
+                ),
+        ),
+        if (_newPhotoBytes != null)
+          const Padding(
+            padding: EdgeInsets.only(top: 5),
+            child: Text(
+              'New photo · uploads when you save',
+              style: TextStyle(fontSize: 12, color: TamuColors.textSecondary),
+            ),
+          ),
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: _saving ? null : _pickPhoto,
+              icon: const Icon(Icons.photo_camera_outlined, size: 18),
+              label: const Text('Change photo'),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _saving ? null : _clearPhoto,
+              style: TextButton.styleFrom(foregroundColor: TamuColors.danger),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('Remove'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
   /// FR4: upload a real photogrammetry scan of this crop.
   Widget _buildScanUploader() {
@@ -491,21 +787,25 @@ class _AddCropScreenState extends State<AddCropScreen> {
         children: [
           Row(
             children: [
-              Icon(has ? Icons.check_circle : Icons.camera_alt_outlined,
-                  size: 20,
-                  color: has ? TamuColors.primary : TamuColors.textSecondary),
+              Icon(
+                has ? Icons.check_circle : Icons.camera_alt_outlined,
+                size: 20,
+                color: has ? TamuColors.primary : TamuColors.textSecondary,
+              ),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text('My Own 3D Scan',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
+                child: Text(
+                  'My Own 3D Scan',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               ),
               if (has)
                 TextButton(
                   onPressed: _uploading ? null : _removeScan,
-                  child: const Text('Remove',
-                      style: TextStyle(
-                          fontSize: 14, color: TamuColors.danger)),
+                  child: const Text(
+                    'Remove',
+                    style: TextStyle(fontSize: 14, color: TamuColors.danger),
+                  ),
                 ),
             ],
           ),
@@ -514,9 +814,9 @@ class _AddCropScreenState extends State<AddCropScreen> {
             Text(
               _uploadedSizeKb == null
                   ? 'A scan of your real crop is attached. Buyers will see '
-                      'this instead of the gallery model.'
+                        'this instead of the gallery model.'
                   : 'Scan attached (${_uploadedSizeKb!.toStringAsFixed(0)} KB). '
-                      'Buyers will see this instead of the gallery model.',
+                        'Buyers will see this instead of the gallery model.',
               style: const TextStyle(fontSize: 13),
             ),
           ] else ...[
@@ -547,9 +847,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
             const Text(
               'Save this crop first, then reopen it to upload a scan.',
               style: TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: TamuColors.textSecondary),
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: TamuColors.textSecondary,
+              ),
             )
           else
             OutlinedButton.icon(
@@ -561,9 +862,11 @@ class _AddCropScreenState extends State<AddCropScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.upload_file),
-              label: Text(_uploading
-                  ? 'Uploading...'
-                  : (has ? 'Replace scan' : 'Upload .glb scan')),
+              label: Text(
+                _uploading
+                    ? 'Uploading...'
+                    : (has ? 'Replace scan' : 'Upload .glb scan'),
+              ),
             ),
         ],
       ),
@@ -586,17 +889,17 @@ class _AddCropScreenState extends State<AddCropScreen> {
             children: [
               const Icon(Icons.view_in_ar, size: 20, color: TamuColors.primary),
               const SizedBox(width: 8),
-              const Text('3D Model for AR',
-                  style:
-                      TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Text(
+                '3D Model for AR',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
               const Spacer(),
               if (_modelKey != null)
                 TextButton(
                   onPressed: () => setState(() {
                     _modelKey = null;
                   }),
-                  child: const Text('Clear',
-                      style: TextStyle(fontSize: 14)),
+                  child: const Text('Clear', style: TextStyle(fontSize: 14)),
                 ),
             ],
           ),
@@ -616,9 +919,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
                 );
               }
               if (snapshot.hasError) {
-                return const Text('Could not load the 3D model gallery.',
-                    style:
-                        TextStyle(fontSize: 13, color: TamuColors.danger));
+                return const Text(
+                  'Could not load the 3D model gallery.',
+                  style: TextStyle(fontSize: 13, color: TamuColors.danger),
+                );
               }
               final all = snapshot.data ?? [];
               // Show models for the chosen category first.
@@ -640,11 +944,11 @@ class _AddCropScreenState extends State<AddCropScreen> {
                     child: Container(
                       constraints: const BoxConstraints(minHeight: 44),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: selected
-                            ? TamuColors.lightGreen
-                            : Colors.white,
+                        color: selected ? TamuColors.lightGreen : Colors.white,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: selected
@@ -659,24 +963,32 @@ class _AddCropScreenState extends State<AddCropScreen> {
                           if (selected)
                             const Padding(
                               padding: EdgeInsets.only(right: 6),
-                              child: Icon(Icons.check_circle,
-                                  size: 16, color: TamuColors.primary),
+                              child: Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: TamuColors.primary,
+                              ),
                             ),
-                          Text(m.label,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: selected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: selected
-                                    ? TamuColors.primary
-                                    : TamuColors.textPrimary,
-                              )),
+                          Text(
+                            m.label,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: selected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: selected
+                                  ? TamuColors.primary
+                                  : TamuColors.textPrimary,
+                            ),
+                          ),
                           const SizedBox(width: 6),
-                          Text('${m.sizeKb.toStringAsFixed(0)} KB',
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  color: TamuColors.textSecondary)),
+                          Text(
+                            '${m.sizeKb.toStringAsFixed(0)} KB',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: TamuColors.textSecondary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -687,9 +999,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
           ),
           if (_modelKey == null) ...[
             const SizedBox(height: 8),
-            const Text('No model selected - this crop will have no AR view.',
-                style: TextStyle(
-                    fontSize: 12, color: TamuColors.textSecondary)),
+            const Text(
+              'No model selected - this crop will have no AR view.',
+              style: TextStyle(fontSize: 12, color: TamuColors.textSecondary),
+            ),
           ],
         ],
       ),

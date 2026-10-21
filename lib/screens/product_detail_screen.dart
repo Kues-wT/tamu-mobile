@@ -3,9 +3,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../widgets/crop_photo.dart';
 import '../map_config.dart';
 import 'ar_view_screen.dart';
 import 'checkout_screen.dart';
+import 'photo_viewer_screen.dart';
 import 'nearby_farms_screen.dart';
 
 /// Product detail. "Review order" opens the FR5 checkout screen.
@@ -144,27 +146,70 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  void _openPhoto() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PhotoViewerScreen(photoUrl: p.photoUrl!, title: p.name),
+      ),
+    );
+  }
+
   Widget _buildImageArea() {
+    final hasPhoto = p.photoUrl != null;
     return Container(
-      height: 160,
+      height: hasPhoto ? 240 : 160,
       decoration: BoxDecoration(
         color: TamuColors.lightGreen,
         borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
       ),
       child: Stack(
         children: [
-          Center(
-            child: Text(
-              switch (p.category) {
-                'vegetable' => '🥬',
-                'fruit' => '🍌',
-                'rice' => '🌾',
-                'herb' => '🌿',
-                _ => '🌱',
-              },
-              style: const TextStyle(fontSize: 72),
+          Positioned.fill(
+            child: Semantics(
+              button: hasPhoto,
+              label: hasPhoto ? 'View full photo' : null,
+              child: GestureDetector(
+                onTap: hasPhoto ? _openPhoto : null,
+                // contain: the whole photo is visible, not a cropped zoom.
+                child: CropPhoto(
+                  photoUrl: p.photoUrl,
+                  category: p.category,
+                  height: 240,
+                  radius: TamuSizes.cardRadius,
+                  emojiSize: 72,
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
           ),
+          if (hasPhoto)
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: Material(
+                color: Colors.black54,
+                shape: const StadiumBorder(),
+                child: InkWell(
+                  customBorder: const StadiumBorder(),
+                  onTap: _openPhoto,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.zoom_out_map, size: 16, color: Colors.white),
+                        SizedBox(width: 6),
+                        Text('View photo',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           // FR4: AR badge, only when a 3D model is attached.
           if (p.hasArModel)
             Positioned(

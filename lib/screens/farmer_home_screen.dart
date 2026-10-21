@@ -86,14 +86,22 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
       MaterialPageRoute(
           builder: (_) => const notifications.NotificationsScreen()),
     );
-    if (mounted) setState(() => _badgesFuture = ApiService.fetchBadges());
+    if (mounted) {
+      setState(() {
+        _badgesFuture = ApiService.fetchBadges();
+      });
+    }
   }
 
   Future<void> _openRequests() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const requests.RequestsScreen()),
     );
-    if (mounted) setState(() => _badgesFuture = ApiService.fetchBadges());
+    if (mounted) {
+      setState(() {
+        _badgesFuture = ApiService.fetchBadges();
+      });
+    }
   }
 
   void _openListings() {

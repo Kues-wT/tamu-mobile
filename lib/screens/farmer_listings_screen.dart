@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
+import '../widgets/crop_photo.dart';
 import '../theme.dart';
 import '../widgets/farmer_bottom_nav.dart';
 import 'add_crop_screen.dart' as add_crop;
@@ -23,7 +24,9 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _productsFuture = ApiService.fetchMyProducts());
+    setState(() {
+      _productsFuture = ApiService.fetchMyProducts();
+    });
     await _productsFuture;
   }
 
@@ -245,13 +248,6 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
 
   Widget _buildListingCard(Product product) {
     final ended = _isEnded(product);
-    final emoji = switch (product.category) {
-      'vegetable' => '🥬',
-      'fruit' => '🍌',
-      'rice' => '🌾',
-      'herb' => '🌿',
-      _ => '🌱',
-    };
     final availability = product.availableUntil == null
         ? ''
         : ' · Ends ${MaterialLocalizations.of(context).formatShortDate(product.availableUntil!)}';
@@ -266,15 +262,12 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
       child: Row(
         children: [
           const SizedBox(width: 8),
-          Container(
+          CropPhoto(
+            photoUrl: product.photoUrl,
+            category: product.category,
             width: 64,
             height: 64,
-            decoration: BoxDecoration(
-              color: TamuColors.lightGreen,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            alignment: Alignment.center,
-            child: Text(emoji, style: const TextStyle(fontSize: 30)),
+            radius: 10,
           ),
           const SizedBox(width: 10),
           Expanded(

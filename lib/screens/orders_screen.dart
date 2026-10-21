@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../theme.dart';
 import '../api_service.dart';
+import '../widgets/crop_photo.dart';
 import '../widgets/farmer_bottom_nav.dart';
 import 'profile_screen.dart' as profile;
 import 'requests_screen.dart' as requests;
@@ -776,20 +777,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
               ),
               child: Row(
                 children: [
-                  // No crop photos yet, so a leaf tile stands in.
-                  Container(
+                  // FR2 crop photo, or a placeholder for older listings.
+                  CropPhoto(
+                    photoUrl: order.productPhotoUrl,
                     width: 52,
                     height: 52,
-                    decoration: BoxDecoration(
-                      color: TamuColors.lightGreen,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.eco_outlined,
-                      color: TamuColors.primary,
-                      size: 26,
-                    ),
+                    emojiSize: 26,
                   ),
                   const SizedBox(width: 10),
                   Expanded(

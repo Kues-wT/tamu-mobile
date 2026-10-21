@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../theme.dart';
 import '../api_service.dart';
+import '../widgets/crop_photo.dart';
 import 'location_picker_screen.dart';
 import 'order_placed_screen.dart';
 
@@ -305,18 +306,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ),
       child: Row(
         children: [
-          Container(
+          CropPhoto(
+            photoUrl: p.photoUrl,
+            category: p.category,
             width: 52,
             height: 52,
-            decoration: BoxDecoration(
-              color: TamuColors.lightGreen,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: const Icon(
-              Icons.eco_outlined,
-              color: TamuColors.primary,
-              size: 26,
-            ),
+            emojiSize: 26,
           ),
           const SizedBox(width: 10),
           Expanded(
