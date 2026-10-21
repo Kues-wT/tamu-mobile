@@ -645,6 +645,7 @@ class ApiService {
     required String fullName,
     required String role,
     String? phone,
+    String? farmName, // farmers only
   }) async {
     final response = await http
         .post(
@@ -656,6 +657,8 @@ class ApiService {
             'full_name': fullName,
             'role': role,
             if (phone != null && phone.isNotEmpty) 'phone': phone,
+            if (role == 'farmer' && farmName != null && farmName.isNotEmpty)
+              'farm_name': farmName,
           }),
         )
         .timeout(const Duration(seconds: 10));

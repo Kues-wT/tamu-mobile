@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../api_service.dart';
+import '../widgets/auth_widgets.dart';
 import 'buyer_home_screen.dart';
 import 'farmer_home_screen.dart';
 import 'register_screen.dart';
 
-/// TAMU Login screen - now calls the real /login endpoint.
+/// TAMU Login screen (Figma "Auth" sign-in) - calls the real /login endpoint.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -16,7 +18,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _showPassword = false;
   bool _loading = false;
-  bool _registerHovered = false;
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -75,25 +76,74 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: TamuColors.darkGreen,
+      backgroundColor: TamuColors.warm,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 430),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(TamuSizes.pagePadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: AutofillGroup(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(18, 28, 18, 28),
                 children: [
-                  const SizedBox(height: 24),
-                  _buildLogo(),
-                  const SizedBox(height: 28),
-                  _buildForm(),
-                  const SizedBox(height: 16),
+                  const AuthBrandRow(),
+                  const SizedBox(height: 26),
+                  const Text('Welcome back',
+                      style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: TamuColors.darkGreen)),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Sign in to your farmer or buyer account.',
+                    style: TextStyle(
+                        fontSize: 13, color: TamuColors.textSecondary),
+                  ),
+                  const SizedBox(height: 14),
+                  AuthField(
+                    label: 'Email',
+                    controller: _emailController,
+                    hint: 'nama@tamu.my',
+                    keyboardType: TextInputType.emailAddress,
+                    enabled: !_loading,
+                    autofillHints: const [AutofillHints.email],
+                    onSubmitted: (_) => _handleLogin(),
+                  ),
+                  AuthField(
+                    label: 'Password',
+                    controller: _passwordController,
+                    hint: 'Enter your password',
+                    obscureText: !_showPassword,
+                    enabled: !_loading,
+                    autofillHints: const [AutofillHints.password],
+                    onSubmitted: (_) => _handleLogin(),
+                    suffixIcon: IconButton(
+                      tooltip: _showPassword ? 'Hide password' : 'Show password',
+                      icon: Icon(_showPassword
+                          ? Icons.visibility_off
+                          : Icons.visibility),
+                      onPressed: () =>
+                          setState(() => _showPassword = !_showPassword),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  AuthPrimaryButton(
+                    label: 'Sign in',
+                    loading: _loading,
+                    onPressed: _handleLogin,
+                  ),
+                  const SizedBox(height: 6),
+                  AuthSwitchLine(
+                    prompt: 'New to TAMU?',
+                    action: 'Create account',
+                    onTap: _loading
+                        ? null
+                        : () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) => const RegisterScreen()),
+                            ),
+                  ),
+                  const SizedBox(height: 14),
                   _buildDemoAccounts(),
-                  const SizedBox(height: 16),
-                  _buildRegisterLink(),
-                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -103,180 +153,67 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildLogo() {
-    return Column(
-      children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: TamuColors.primary,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: TamuColors.primary.withValues(alpha: 0.5),
-                blurRadius: 30,
-              ),
-            ],
-          ),
-          child: const Center(child: Text('🌿', style: TextStyle(fontSize: 34))),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'TAMU',
-          style: TextStyle(
-            fontSize: 40,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            letterSpacing: 2,
-          ),
-        ),
-        const SizedBox(height: 4),
-        const Text('Farm Fresh. Direct to You.',
-            style: TextStyle(fontSize: 16, color: TamuColors.secondary)),
-        const Text('Tamparuli, Sabah',
-            style: TextStyle(fontSize: 14, color: Colors.white54)),
-      ],
-    );
-  }
-
-  Widget _buildForm() {
+  /// Demo shortcuts for the FYP demo, clearly labelled as demo data.
+  Widget _buildDemoAccounts() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white24),
+        color: const Color(0xFFEDF0EC),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Email',
-              style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            enabled: !_loading,
-            style: const TextStyle(fontSize: 16),
-            onSubmitted: (_) => _handleLogin(),
-            decoration: const InputDecoration(
-              hintText: 'nama@tamu.my',
-              prefixIcon: Icon(Icons.email_outlined),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.6),
+              border: Border.all(color: const Color(0xFFA7B6A8)),
+              borderRadius: BorderRadius.circular(5),
             ),
+            child: const Text('DEMO ACCOUNTS',
+                style: TextStyle(
+                    fontSize: 9,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF526354))),
           ),
-          const SizedBox(height: TamuSizes.gap),
-          const Text('Password',
-              style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _passwordController,
-            obscureText: !_showPassword,
-            enabled: !_loading,
-            style: const TextStyle(fontSize: 16),
-            onSubmitted: (_) => _handleLogin(),
-            decoration: InputDecoration(
-              hintText: 'Enter your password',
-              prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: IconButton(
-                icon: Icon(
-                    _showPassword ? Icons.visibility_off : Icons.visibility),
-                onPressed: () => setState(() => _showPassword = !_showPassword),
-              ),
-            ),
+          const SizedBox(height: 8),
+          const Text(
+            'Sample accounts for the project demo. Tap one to fill in its '
+            'email and password.',
+            style: TextStyle(
+                fontSize: 11, height: 1.45, color: TamuColors.textSecondary),
           ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: _loading ? null : _handleLogin,
-            child: _loading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('Login'),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              _demoChip('Puan Siti · farmer', 'siti@tamu.my'),
+              _demoChip('En. Jumat · farmer', 'jumat@tamu.my'),
+              _demoChip('Cik Aina · buyer', 'aina@tamu.my'),
+            ],
           ),
         ],
       ),
     );
   }
 
-  /// Demo shortcut buttons - handy during development and your FYP demo.
-  Widget _buildDemoAccounts() {
-    return Column(
-      children: [
-        const Text('Demo accounts (password: tamu1234)',
-            style: TextStyle(fontSize: 13, color: Colors.white38)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
-          children: [
-            _demoChip('🌾 Puan Siti', 'siti@tamu.my'),
-            _demoChip('🌾 En. Jumat', 'jumat@tamu.my'),
-            _demoChip('🛒 Cik Aina', 'aina@tamu.my'),
-          ],
-        ),
-      ],
-    );
-  }
-
+  /// Figma ".chips button": white outlined pill.
   Widget _demoChip(String label, String email) {
-    // A plain button, not an ActionChip - the global chipTheme was
-    // forcing a white background behind white text.
     return OutlinedButton(
       onPressed: _loading ? null : () => _fillDemo(email),
       style: OutlinedButton.styleFrom(
-        backgroundColor: Colors.white.withValues(alpha: 0.12),
-        foregroundColor: Colors.white,
-        disabledForegroundColor: Colors.white38,
-        side: const BorderSide(color: Colors.white54),
-        minimumSize: const Size(0, 44), // keeps the 44px tap target
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        backgroundColor: Colors.white,
+        foregroundColor: TamuColors.darkGreen,
+        side: const BorderSide(color: TamuColors.line),
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         shape: const StadiumBorder(),
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        textStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700),
       ),
-      child: Text(label, style: const TextStyle(color: Colors.white)),
-    );
-  }
-
-  Widget _buildRegisterLink() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text("Don't have an account? ",
-            style: TextStyle(fontSize: 14, color: Colors.white70)),
-        // MouseRegion gives a pointing-hand cursor on the web,
-        // and the hover state underlines the word.
-        MouseRegion(
-          cursor: _loading ? SystemMouseCursors.basic : SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _registerHovered = true),
-          onExit: (_) => setState(() => _registerHovered = false),
-          child: GestureDetector(
-            onTap: _loading
-                ? null
-                : () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                    ),
-            child: Text(
-              'Register',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: _registerHovered ? Colors.white : TamuColors.secondary,
-                decoration:
-                    _registerHovered ? TextDecoration.underline : null,
-                decorationColor: Colors.white,
-                decorationThickness: 2,
-              ),
-            ),
-          ),
-        ),
-      ],
+      child: Text(label),
     );
   }
 }
