@@ -4,8 +4,6 @@ import 'package:model_viewer_plus/model_viewer_plus.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../ar_support.dart';
-import 'marker_ar_screen.dart';
-import 'marker_card_screen.dart';
 
 /// FR4 - AR Visualization.
 ///
@@ -14,8 +12,7 @@ import 'marker_card_screen.dart';
 ///   * interactive 3D inspection (rotate, pinch to zoom) everywhere
 ///   * true augmented reality on ARCore devices, where the crop is
 ///     placed at real-world scale on the floor through the camera
-///   * on phones without ARCore, marker AR on the printed TAMU card
-///     (MarkerArScreen) - chosen automatically
+///   * phones without ARCore get the 3D view only (no AR button)
 class ArViewScreen extends StatefulWidget {
   final Product product;
   const ArViewScreen({super.key, required this.product});
@@ -34,16 +31,6 @@ class _ArViewScreenState extends State<ArViewScreen> {
     ArSupport.hasFloorAr().then((v) {
       if (mounted) setState(() => _floorAr = v);
     });
-  }
-
-  void _openMarkerAr() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => MarkerArScreen(product: p)));
-  }
-
-  void _openCard() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const MarkerCardScreen()));
   }
 
   Product get p => widget.product;
@@ -97,7 +84,7 @@ class _ArViewScreenState extends State<ArViewScreen> {
         src: p.modelUrl!,
         alt: '3D model of ${p.name}',
         // Floor AR (Scene Viewer / Quick Look) only where ARCore exists;
-        // other phones use the TAMU-card marker AR button below.
+        // other phones get the 3D view only.
         ar: _floorAr == true,
         arModes: const ['scene-viewer', 'webxr', 'quick-look'],
         arPlacement: ArPlacement.floor,
@@ -204,32 +191,6 @@ class _ArViewScreenState extends State<ArViewScreen> {
           ),
           const SizedBox(height: 12),
           if (p.hasArModel) ...[
-            if (_floorAr == false && ArSupport.markerArAvailable) ...[
-              ElevatedButton.icon(
-                onPressed: _openMarkerAr,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                ),
-                icon: const Icon(Icons.view_in_ar),
-                label: const Text('View on the TAMU card (AR)'),
-              ),
-              TextButton.icon(
-                onPressed: _openCard,
-                icon: const Icon(Icons.qr_code_2, size: 18),
-                label: const Text('Get the TAMU card'),
-              ),
-            ] else if (_floorAr == true && ArSupport.markerArAvailable)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: _openMarkerAr,
-                  child: const Text('No space? Use the TAMU card instead'),
-                ),
-              ),
-            const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -251,10 +212,9 @@ class _ArViewScreenState extends State<ArViewScreen> {
                           ? 'Drag to turn, pinch to zoom. Tap "View in my '
                                 'room" and point your camera at a table or '
                                 'floor to see the crop at its real size.'
-                          : 'Drag to turn, pinch to zoom. For AR, put the '
-                                'printed TAMU card on a table and tap "View on '
-                                'the TAMU card": the crop appears on it at its '
-                                'real size.',
+                          : 'Drag to turn, pinch to zoom to inspect the crop. '
+                                'Placing it in your room (AR) needs a phone '
+                                'with Google ARCore.',
                       style: const TextStyle(fontSize: 14),
                     ),
                   ),
