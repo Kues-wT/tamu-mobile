@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,9 +16,11 @@ import 'marker_card_screen.dart';
 /// FR4: marker-based WebAR, for phones without Google ARCore.
 ///
 /// Runs assets/ar/marker_ar.html (A-Frame + AR.js) in an in-app WebView.
-/// The page is given a secure origin so the browser engine allows the
-/// camera; the crop model and marker pattern are passed into the page, so
-/// it never needs to reach the TAMU server itself.
+/// A tiny server on 127.0.0.1 (inside the app) serves the page, the crop
+/// model and the marker pattern: localhost counts as a secure origin, so
+/// the camera is allowed, and no large data has to pass through the main
+/// thread. The WebView uses hybrid composition: drawing WebGL + camera
+/// through Flutter's texture deadlocked the main thread (ANR) on a Redmi 12.
 class MarkerArScreen extends StatefulWidget {
   final Product product;
 
@@ -36,6 +38,7 @@ class _MarkerArScreenState extends State<MarkerArScreen> {
   bool _cameraOn = false;
   bool _found = false;
   WebViewController? _controller;
+  HttpServer? _server;
   Timer? _slowTimer;
   bool _slow = false;
 
@@ -50,6 +53,7 @@ class _MarkerArScreenState extends State<MarkerArScreen> {
   @override
   void dispose() {
     _slowTimer?.cancel();
+    _server?.close(force: true);
     super.dispose();
   }
 
@@ -67,7 +71,7 @@ class _MarkerArScreenState extends State<MarkerArScreen> {
     }
 
     try {
-      final html = await _buildPage();
+      final pageUrl = await _startLocalServer();
       final controller =
           WebViewController(
               // The page asks for the camera; the app already has permission.
@@ -81,9 +85,7 @@ class _MarkerArScreenState extends State<MarkerArScreen> {
         // Let the camera video start without a tap.
         await platform.setMediaPlaybackRequiresUserGesture(false);
       }
-      // A secure (https) base origin is needed for camera access; nothing
-      // is actually loaded from it.
-      await controller.loadHtmlString(html, baseUrl: 'https://tamu.local/');
+      await controller.loadRequest(pageUrl);
       if (!mounted) return;
       _slowTimer = Timer(const Duration(seconds: 20), () {
         if (mounted && !_cameraOn) setState(() => _slow = true);
@@ -101,8 +103,9 @@ class _MarkerArScreenState extends State<MarkerArScreen> {
     }
   }
 
-  /// Fills the page template with the model, marker pattern and scale.
-  Future<String> _buildPage() async {
+  /// Downloads the model, then serves page + model + pattern on
+  /// 127.0.0.1 for the WebView. Returns the page address.
+  Future<Uri> _startLocalServer() async {
     final url = resolveServerUrl(p.modelUrl);
     if (url == null) throw Exception('This crop has no 3D model.');
     final response = await http
@@ -110,25 +113,45 @@ class _MarkerArScreenState extends State<MarkerArScreen> {
         .timeout(const Duration(seconds: 30));
     if (response.statusCode != 200) {
       throw Exception(
-        'Could not download the 3D model '
-        '(${response.statusCode}).',
+        'Could not download the 3D model (${response.statusCode}).',
       );
     }
-    final template = await rootBundle.loadString('assets/ar/marker_ar.html');
+    final model = response.bodyBytes;
     final patt = await rootBundle.loadString('assets/ar/tamu_marker.patt');
     // AR.js measures in marker widths; models are in metres.
     final scale = (100 / ArSupport.markerCm).toStringAsFixed(4);
     final safeName = p.name
-        .replaceAll('\\', '')
+        .replaceAll(r'\', '')
         .replaceAll("'", '’')
         .replaceAll('<', '')
         .replaceAll('>', '');
-    return template
+    final html = (await rootBundle.loadString('assets/ar/marker_ar.html'))
         .replaceAll('{{SOURCE}}', 'sourceType: webcam')
         .replaceAll('{{SCALE}}', scale)
-        .replaceAll('{{NAME}}', safeName)
-        .replaceAll('{{PATT_B64}}', base64Encode(utf8.encode(patt)))
-        .replaceAll('{{MODEL_B64}}', base64Encode(response.bodyBytes));
+        .replaceAll('{{NAME}}', safeName);
+
+    await _server?.close(force: true);
+    // Port 0 = any free port; only reachable from this phone.
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    _server = server;
+    server.listen((request) async {
+      final res = request.response;
+      switch (request.uri.path) {
+        case '/ar.html':
+          res.headers.contentType = ContentType.html;
+          res.write(html);
+        case '/model.glb':
+          res.headers.contentType = ContentType('model', 'gltf-binary');
+          res.add(model);
+        case '/marker.patt':
+          res.headers.contentType = ContentType.text;
+          res.write(patt);
+        default:
+          res.statusCode = HttpStatus.notFound;
+      }
+      await res.close();
+    });
+    return Uri.parse('http://127.0.0.1:${server.port}/ar.html');
   }
 
   void _onPageMessage(JavaScriptMessage message) {
@@ -203,7 +226,7 @@ class _MarkerArScreenState extends State<MarkerArScreen> {
         ),
         _Stage.running => Stack(
           children: [
-            Positioned.fill(child: WebViewWidget(controller: _controller!)),
+            Positioned.fill(child: _webView()),
             if (!_cameraOn)
               Positioned.fill(
                 child: _message(
@@ -241,6 +264,22 @@ class _MarkerArScreenState extends State<MarkerArScreen> {
         ),
       },
     );
+  }
+
+  /// Hybrid composition on Android: the WebView is drawn by Android itself
+  /// instead of through a Flutter texture (which froze the app with WebGL
+  /// and camera video).
+  Widget _webView() {
+    final controller = _controller!;
+    if (controller.platform is AndroidWebViewController) {
+      return WebViewWidget.fromPlatformCreationParams(
+        params: AndroidWebViewWidgetCreationParams(
+          controller: controller.platform,
+          displayWithHybridComposition: true,
+        ),
+      );
+    }
+    return WebViewWidget(controller: controller);
   }
 
   Widget _message({

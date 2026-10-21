@@ -1,10 +1,12 @@
 <!doctype html>
 <!--
   TAMU FR4: marker-based WebAR for phones without Google ARCore.
-  The app loads this page into an in-app WebView and fills in the
-  {{...}} placeholders: the crop model, the marker pattern and the scale
-  that turns metres into marker widths (life size). AR.js finds the
-  printed TAMU card in the camera view and stands the crop on it.
+  The app serves this page, the crop model (model.glb) and the marker
+  pattern (marker.patt) from a small server on 127.0.0.1 inside the app
+  (localhost counts as secure, so the camera is allowed), and fills in
+  the {{...}} placeholders: the scale that turns metres into marker widths
+  (life size) and the crop name. AR.js finds the printed TAMU card in the
+  camera view and stands the crop on it.
 -->
 <html>
 <head>
@@ -31,27 +33,19 @@
   arjs="{{SOURCE}}; debugUIEnabled: false; detectionMode: mono; patternRatio: 0.5">
   <a-entity light="type: ambient; intensity: 0.9"></a-entity>
   <a-entity light="type: directional; intensity: 0.7" position="1 2 1"></a-entity>
-  <a-marker id="card" type="pattern" smooth="true" smoothCount="5" emitevents="true">
-    <a-entity id="crop" scale="{{SCALE}} {{SCALE}} {{SCALE}}"></a-entity>
+  <a-marker id="card" type="pattern" url="marker.patt" smooth="true" smoothCount="5" emitevents="true">
+    <a-entity id="crop" gltf-model="url(model.glb)" scale="{{SCALE}} {{SCALE}} {{SCALE}}"></a-entity>
   </a-marker>
   <a-entity camera></a-entity>
 </a-scene>
 <div id="hint">Point the camera at the TAMU card</div>
 <script>
-  // Base64 data from the app -> blob URLs (more reliable than long data: URLs).
-  function blobUrl(b64, type) {
-    var bin = atob(b64), bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return URL.createObjectURL(new Blob([bytes], { type: type }));
-  }
   function tell(msg) {  // to the Flutter app, when running inside it
     if (window.TamuAR) TamuAR.postMessage(msg);
   }
   var card = document.getElementById('card');
   var crop = document.getElementById('crop');
   var hint = document.getElementById('hint');
-  card.setAttribute('url', blobUrl('{{PATT_B64}}', 'text/plain'));
-  crop.setAttribute('gltf-model', blobUrl('{{MODEL_B64}}', 'model/gltf-binary'));
   crop.addEventListener('model-loaded', function () { tell('model-loaded'); });
   crop.addEventListener('model-error', function () { tell('model-error'); });
   card.addEventListener('markerFound', function () {
