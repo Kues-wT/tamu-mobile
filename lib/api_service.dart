@@ -394,6 +394,8 @@ class ArModel {
   final String key;
   final String label;
   final String category;
+  final String? malay; // local names, e.g. "Nangka" - searchable
+  final double? sizeCm; // real-world size shown in AR
   final String url;
   final double sizeKb;
 
@@ -401,6 +403,8 @@ class ArModel {
     required this.key,
     required this.label,
     required this.category,
+    this.malay,
+    this.sizeCm,
     required this.url,
     required this.sizeKb,
   });
@@ -409,9 +413,21 @@ class ArModel {
         key: json['key'] as String,
         label: json['label'] as String,
         category: json['category'] as String,
+        malay: json['malay'] as String?,
+        sizeCm: (json['size_cm'] as num?)?.toDouble(),
         url: json['url'] as String,
         sizeKb: (json['size_kb'] as num).toDouble(),
       );
+
+  /// True when every word of [query] appears in the English or Malay name.
+  bool matches(String query) {
+    final hay = '$label ${malay ?? ''} $key'.toLowerCase().replaceAll('_', ' ');
+    return query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .every(hay.contains);
+  }
 }
 
 class AppNotification {

@@ -75,11 +75,24 @@ class _ArViewScreenState extends State<ArViewScreen> {
         ar: true,
         arModes: const ['scene-viewer', 'webxr', 'quick-look'],
         arPlacement: ArPlacement.floor,
+        // Catalogue crops are built at real size, so lock the AR scale to
+        // keep them life-size. A farmer's own upload has an unknown scale,
+        // so buyers may resize that one.
+        arScale: p.hasOwnScan ? ArScale.auto : ArScale.fixed,
         autoRotate: _autoRotate,
         cameraControls: true,
         disableZoom: false,
         backgroundColor: const Color(0xFFF5F5F5),
         loading: Loading.eager,
+        // A big labelled button instead of model-viewer's small corner
+        // icon. model-viewer only shows it on phones that support AR.
+        innerModelViewerHtml: '''
+<button slot="ar-button" style="position:absolute;left:50%;bottom:16px;
+  transform:translateX(-50%);padding:14px 22px;border:0;border-radius:28px;
+  background:#2E7D32;color:#fff;font:600 16px sans-serif;
+  box-shadow:0 4px 12px rgba(0,0,0,.25);">
+  &#128247; View in my room
+</button>''',
       ),
     );
   }
@@ -162,9 +175,10 @@ class _ArViewScreenState extends State<ArViewScreen> {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Drag to rotate, pinch to zoom. On an ARCore phone, '
-                      'tap the AR button to place the crop on the floor at '
-                      'real size.',
+                      'Drag to turn, pinch to zoom. Tap "View in my room" '
+                      'and point your camera at a table or floor to see the '
+                      'crop at its real size. Needs a phone with Google AR '
+                      'support; otherwise you still get the 3D view.',
                       style: TextStyle(fontSize: 14),
                     ),
                   ),

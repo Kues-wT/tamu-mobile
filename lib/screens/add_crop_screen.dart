@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/crop_photo.dart';
+import 'crop_model_picker_screen.dart';
 
 /// Add a new crop, or edit an existing one.
 /// Pass `existing` to switch the form into edit mode.
@@ -874,6 +875,21 @@ class _AddCropScreenState extends State<AddCropScreen> {
   }
 
   /// FR4: gallery of pre-loaded 3D models the farmer can attach.
+  /// FR4: opens the searchable life-size crop list, starting from the
+  /// crop name the farmer typed.
+  Future<void> _chooseModel(List<ArModel> models) async {
+    final key = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => CropModelPickerScreen(
+          models: models,
+          initialQuery: _nameController.text.trim(),
+          selectedKey: _modelKey,
+        ),
+      ),
+    );
+    if (key != null && mounted) setState(() => _modelKey = key);
+  }
+
   Widget _buildModelPicker() {
     return Container(
       padding: const EdgeInsets.all(TamuSizes.cardPadding),
@@ -882,129 +898,94 @@ class _AddCropScreenState extends State<AddCropScreen> {
         borderRadius: BorderRadius.circular(TamuSizes.cardRadius),
         border: Border.all(color: TamuColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: FutureBuilder<List<ArModel>>(
+        future: _modelsFuture,
+        builder: (context, snapshot) {
+          final models = snapshot.data ?? const <ArModel>[];
+          ArModel? chosen;
+          for (final m in models) {
+            if (m.key == _modelKey) chosen = m;
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.view_in_ar, size: 20, color: TamuColors.primary),
-              const SizedBox(width: 8),
-              const Text(
-                '3D Model for AR',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              const Row(
+                children: [
+                  Icon(Icons.view_in_ar, size: 20, color: TamuColors.primary),
+                  SizedBox(width: 8),
+                  Text('3D / AR view',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                ],
               ),
-              const Spacer(),
-              if (_modelKey != null)
-                TextButton(
-                  onPressed: () => setState(() {
-                    _modelKey = null;
-                  }),
-                  child: const Text('Clear', style: TextStyle(fontSize: 14)),
-                ),
-            ],
-          ),
-          const Text(
-            'Buyers can inspect this crop in 3D and place it in their room '
-            'using AR. Optional.',
-            style: TextStyle(fontSize: 13, color: TamuColors.textSecondary),
-          ),
-          const SizedBox(height: 12),
-          FutureBuilder<List<ArModel>>(
-            future: _modelsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SizedBox(
-                  height: 60,
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              if (snapshot.hasError) {
-                return const Text(
-                  'Could not load the 3D model gallery.',
+              const SizedBox(height: 4),
+              const Text(
+                'Pick your crop so buyers can see it life-size on their table '
+                'with AR. Optional.',
+                style: TextStyle(fontSize: 13, color: TamuColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const SizedBox(
+                    height: 48,
+                    child: Center(child: CircularProgressIndicator()))
+              else if (snapshot.hasError)
+                const Text(
+                  'Could not load the crop list. Check your connection.',
                   style: TextStyle(fontSize: 13, color: TamuColors.danger),
-                );
-              }
-              final all = snapshot.data ?? [];
-              // Show models for the chosen category first.
-              final models = [
-                ...all.where((m) => m.category == _category),
-                ...all.where((m) => m.category != _category),
-              ];
-
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: models.map((m) {
-                  final selected = _modelKey == m.key;
-                  return InkWell(
-                    onTap: () => setState(() {
-                      _modelKey = m.key;
-                    }),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 44),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected ? TamuColors.lightGreen : Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: selected
-                              ? TamuColors.primary
-                              : TamuColors.border,
-                          width: selected ? 2 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (selected)
-                            const Padding(
-                              padding: EdgeInsets.only(right: 6),
-                              child: Icon(
-                                Icons.check_circle,
-                                size: 16,
-                                color: TamuColors.primary,
-                              ),
-                            ),
-                          Text(
-                            m.label,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: selected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: selected
-                                  ? TamuColors.primary
-                                  : TamuColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${m.sizeKb.toStringAsFixed(0)} KB',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: TamuColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
+                )
+              else ...[
+                if (chosen != null)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: TamuColors.lightGreen,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-          if (_modelKey == null) ...[
-            const SizedBox(height: 8),
-            const Text(
-              'No model selected - this crop will have no AR view.',
-              style: TextStyle(fontSize: 12, color: TamuColors.textSecondary),
-            ),
-          ],
-        ],
+                    child: Row(
+                      children: [
+                        Text(CropPhoto.emojiFor(chosen.category),
+                            style: const TextStyle(fontSize: 26)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(chosen.label,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700)),
+                              Text(
+                                'Life-size in AR · about '
+                                '${chosen.sizeCm?.round() ?? '?'} cm',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: TamuColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove 3D model',
+                          onPressed: () => setState(() => _modelKey = null),
+                          icon: const Icon(Icons.close,
+                              color: TamuColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: models.isEmpty ? null : () => _chooseModel(models),
+                  icon: Icon(chosen == null ? Icons.search : Icons.swap_horiz),
+                  label: Text(chosen == null
+                      ? 'Choose crop 3D model'
+                      : 'Change crop model'),
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
