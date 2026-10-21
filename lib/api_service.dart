@@ -179,8 +179,11 @@ class Product {
   /// True when this listing has a 3D model that can be viewed in AR.
   bool get hasArModel => modelUrl != null && modelUrl!.isNotEmpty;
 
-  /// True when the model is the farmer's own photogrammetry scan.
+  /// True when the model is the farmer's own uploaded .glb (unknown size).
   bool get hasOwnScan => modelSource == 'upload';
+
+  /// True when the model was built from the farmer's 4 photos.
+  bool get hasPhotoModel => modelSource == 'photo';
 
   bool get isLowStock => stockQuantity > 0 && stockQuantity < 15;
   bool get isOutOfStock => stockQuantity <= 0;
@@ -1062,6 +1065,36 @@ class ApiService {
     );
 
     final streamed = await req.send().timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamed);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return Product.fromJson(jsonDecode(response.body));
+    }
+    throw Exception(_errorMessage(response));
+  }
+
+  /// POST /products/{id}/photo-model - FR4 3D view from 4 photos
+  /// (front, right, back, left) at the crop's real height.
+  static Future<Product> createPhotoModel({
+    required int productId,
+    required List<List<int>> photos,
+    required List<String> names,
+    required double heightCm,
+  }) async {
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$kBaseUrl/products/$productId/photo-model'),
+    );
+    if (_token != null) {
+      req.headers['Authorization'] = 'Bearer $_token';
+    }
+    const sides = ['front', 'right', 'back', 'left'];
+    for (var i = 0; i < 4; i++) {
+      req.files.add(http.MultipartFile.fromBytes(sides[i], photos[i],
+          filename: names[i].isEmpty ? '${sides[i]}.jpg' : names[i]));
+    }
+    req.fields['height_cm'] = heightCm.toString();
+
+    final streamed = await req.send().timeout(const Duration(seconds: 90));
     final response = await http.Response.fromStream(streamed);
     if (response.statusCode == 200 || response.statusCode == 201) {
       return Product.fromJson(jsonDecode(response.body));

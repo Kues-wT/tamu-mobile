@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:model_viewer_plus/model_viewer_plus.dart';
+
 import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/crop_photo.dart';
@@ -53,9 +54,11 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
   List<ArModel> get _filtered {
     final q = _search.text.trim();
     return widget.models.where((m) {
-      final inCategory = _category == 'all' ||
+      final inCategory =
+          _category == 'all' ||
           m.category == _category ||
-          (_category == 'other' && (m.category == 'rice' || m.category == 'other'));
+          (_category == 'other' &&
+              (m.category == 'rice' || m.category == 'other'));
       return inCategory && (q.isEmpty || m.matches(q));
     }).toList();
   }
@@ -66,7 +69,8 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
@@ -74,15 +78,22 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(m.label,
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: TamuColors.darkGreen)),
+              Text(
+                m.label,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: TamuColors.darkGreen,
+                ),
+              ),
               if (m.malay != null)
-                Text(m.malay!,
-                    style: const TextStyle(
-                        fontSize: 13, color: TamuColors.textSecondary)),
+                Text(
+                  m.malay!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: TamuColors.textSecondary,
+                  ),
+                ),
               const SizedBox(height: 10),
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
@@ -102,7 +113,9 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
                 'Drag to turn it around. Buyers see it life-size '
                 '(about ${m.sizeCm?.round() ?? '?'} cm) in AR.',
                 style: const TextStyle(
-                    fontSize: 12, color: TamuColors.textSecondary),
+                  fontSize: 12,
+                  color: TamuColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
@@ -110,9 +123,12 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15)),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
                   textStyle: GoogleFonts.poppins(
-                      fontSize: 15, fontWeight: FontWeight.w700),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 icon: const Icon(Icons.check),
                 label: const Text('Use this model'),
@@ -135,11 +151,14 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
         surfaceTintColor: Colors.transparent,
         foregroundColor: TamuColors.darkGreen,
         iconTheme: const IconThemeData(color: TamuColors.darkGreen),
-        title: const Text('Choose your crop',
-            style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: TamuColors.darkGreen)),
+        title: const Text(
+          'Choose your crop',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: TamuColors.darkGreen,
+          ),
+        ),
       ),
       body: SafeArea(
         child: Center(
@@ -166,7 +185,8 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(13)),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
                     ),
                   ),
                 ),
@@ -192,9 +212,10 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
                               fontWeight: FontWeight.w700,
                             ),
                             side: BorderSide(
-                                color: _category == e.key
-                                    ? TamuColors.darkGreen
-                                    : TamuColors.line),
+                              color: _category == e.key
+                                  ? TamuColors.darkGreen
+                                  : TamuColors.line,
+                            ),
                             onSelected: (_) =>
                                 setState(() => _category = e.key),
                           ),
@@ -212,8 +233,9 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
                               '"Mixed produce basket" under Rice & other.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  fontSize: 14,
-                                  color: TamuColors.textSecondary),
+                                fontSize: 14,
+                                color: TamuColors.textSecondary,
+                              ),
                             ),
                           ),
                         )
@@ -239,8 +261,9 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
-            color: selected ? TamuColors.primary : TamuColors.line,
-            width: selected ? 2 : 1),
+          color: selected ? TamuColors.primary : TamuColors.line,
+          width: selected ? 2 : 1,
+        ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -258,32 +281,47 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
                   color: TamuColors.lightGreen,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(CropPhoto.emojiFor(m.category),
-                    style: const TextStyle(fontSize: 22)),
+                child: Text(
+                  CropPhoto.emojiFor(m.category),
+                  style: const TextStyle(fontSize: 22),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(m.label,
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: TamuColors.darkGreen)),
+                    Text(
+                      m.label,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: TamuColors.darkGreen,
+                      ),
+                    ),
                     if (m.malay != null)
-                      Text(m.malay!,
-                          style: const TextStyle(
-                              fontSize: 12, color: TamuColors.textSecondary)),
+                      Text(
+                        m.malay!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: TamuColors.textSecondary,
+                        ),
+                      ),
                   ],
                 ),
               ),
-              Text('${m.sizeCm?.round() ?? ''} cm',
-                  style: const TextStyle(
-                      fontSize: 12, color: TamuColors.textSecondary)),
+              Text(
+                '${m.sizeCm?.round() ?? ''} cm',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: TamuColors.textSecondary,
+                ),
+              ),
               const SizedBox(width: 6),
-              Icon(selected ? Icons.check_circle : Icons.view_in_ar,
-                  color: TamuColors.primary),
+              Icon(
+                selected ? Icons.check_circle : Icons.view_in_ar,
+                color: TamuColors.primary,
+              ),
             ],
           ),
         ),

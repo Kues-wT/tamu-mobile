@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/crop_photo.dart';
 import 'crop_model_picker_screen.dart';
+import 'photo_model_screen.dart';
 
 /// Add a new crop, or edit an existing one.
 /// Pass `existing` to switch the form into edit mode.
@@ -45,6 +46,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
   Uint8List? _newPhotoBytes;
   String? _newPhotoName;
   bool _removePhoto = false;
+
+  // FR4: 4-photo 3D view. A new draft uploads on Save.
+  PhotoModelDraft? _photoModelDraft;
+  bool _hasPhotoModel = false; // already on the server
 
   String? get _existingPhotoUrl =>
       _removePhoto ? null : widget.existing?.photoUrl;
@@ -94,7 +99,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
     _availableFrom = e?.availableFrom;
     _availableUntil = e?.availableUntil;
     _modelKey = e?.modelKey;
-    _uploadedName = e?.modelFile;
+    // A photo-built model shares the model file slot with an uploaded
+    // .glb, so only treat it as a "scan" when it is not photo-built.
+    _hasPhotoModel = e?.hasPhotoModel ?? false;
+    _uploadedName = _hasPhotoModel ? null : e?.modelFile;
     _modelsFuture = ApiService.fetchArModels();
   }
 
@@ -246,6 +254,15 @@ class _AddCropScreenState extends State<AddCropScreen> {
         );
       } else if (_removePhoto) {
         await ApiService.deleteProductPhoto(productId);
+      }
+      final draft = _photoModelDraft;
+      if (draft != null) {
+        await ApiService.createPhotoModel(
+          productId: productId,
+          photos: draft.photos,
+          names: draft.names,
+          heightCm: draft.heightCm,
+        );
       }
       return null;
     } catch (e) {
@@ -421,7 +438,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
           SnackBar(
             backgroundColor: TamuColors.warning,
             content: Text(
-              'Crop saved, but the photo was not uploaded: $photoError',
+              'Crop saved, but the photos were not uploaded: $photoError',
               style: const TextStyle(fontSize: 14, color: Colors.white),
             ),
           ),
@@ -462,7 +479,23 @@ class _AddCropScreenState extends State<AddCropScreen> {
                 children: [
                   _buildPhotoPicker(),
                   const SizedBox(height: 20),
-                  _buildScanUploader(),
+                  Theme(
+                    // No divider lines around the collapsed section.
+                    data: Theme.of(context)
+                        .copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      initiallyExpanded: _uploadedName != null,
+                      title: const Text(
+                        'Advanced (optional): upload your own 3D file',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: TamuColors.textSecondary,
+                        ),
+                      ),
+                      children: [_buildScanUploader()],
+                    ),
+                  ),
                   const SizedBox(height: TamuSizes.gap),
                   _buildModelPicker(),
                   const SizedBox(height: 20),
@@ -875,6 +908,102 @@ class _AddCropScreenState extends State<AddCropScreen> {
   }
 
   /// FR4: gallery of pre-loaded 3D models the farmer can attach.
+  Future<void> _takeModelPhotos(double? suggestedHeightCm) async {
+    final draft = await Navigator.of(context).push<PhotoModelDraft>(
+      MaterialPageRoute(
+        builder: (_) => PhotoModelScreen(suggestedHeightCm: suggestedHeightCm),
+      ),
+    );
+    if (draft != null && mounted) setState(() => _photoModelDraft = draft);
+  }
+
+  Future<void> _removePhotoModel() async {
+    try {
+      await ApiService.deleteProductModel(widget.existing!.id);
+      if (!mounted) return;
+      setState(() => _hasPhotoModel = false);
+      _snack('Photo 3D view removed.', TamuColors.primary);
+    } catch (e) {
+      if (!mounted) return;
+      _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
+    }
+  }
+
+  /// "Your real crop" option at the top of the 3D / AR card.
+  Widget _buildPhotoModelOption(double? suggestedHeightCm) {
+    final draft = _photoModelDraft;
+    final String title;
+    final String detail;
+    if (draft != null) {
+      title = '4 photos ready';
+      detail =
+          'About ${draft.heightCm.round()} cm. The 3D view is made '
+          'when you save.';
+    } else if (_hasPhotoModel) {
+      title = 'Your photo 3D view is on';
+      detail = 'Buyers see your own crop in AR.';
+    } else {
+      title = 'Take 4 photos of your crop';
+      detail = 'Best: buyers see your real crop in AR.';
+    }
+    final has = draft != null || _hasPhotoModel;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: has ? TamuColors.lightGreen : const Color(0xFFFBFFFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: TamuColors.paleBorder),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            has ? Icons.check_circle : Icons.photo_camera_outlined,
+            color: TamuColors.primary,
+            size: 26,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: TamuColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (draft != null)
+            IconButton(
+              tooltip: 'Remove these photos',
+              onPressed: () => setState(() => _photoModelDraft = null),
+              icon: const Icon(Icons.close, color: TamuColors.textSecondary),
+            )
+          else if (_hasPhotoModel)
+            IconButton(
+              tooltip: 'Remove photo 3D view',
+              onPressed: _removePhotoModel,
+              icon: const Icon(Icons.delete_outline, color: TamuColors.danger),
+            ),
+          TextButton(
+            onPressed: () => _takeModelPhotos(suggestedHeightCm),
+            child: Text(has ? 'Retake' : 'Start'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// FR4: opens the searchable life-size crop list, starting from the
   /// crop name the farmer typed.
   Future<void> _chooseModel(List<ArModel> models) async {
@@ -913,22 +1042,36 @@ class _AddCropScreenState extends State<AddCropScreen> {
                 children: [
                   Icon(Icons.view_in_ar, size: 20, color: TamuColors.primary),
                   SizedBox(width: 8),
-                  Text('3D / AR view',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text(
+                    '3D / AR view',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
               const SizedBox(height: 4),
               const Text(
-                'Pick your crop so buyers can see it life-size on their table '
-                'with AR. Optional.',
+                'Let buyers see your crop life-size on their table with AR. '
+                'Optional.',
                 style: TextStyle(fontSize: 13, color: TamuColors.textSecondary),
               ),
               const SizedBox(height: 12),
+              _buildPhotoModelOption(chosen?.sizeCm),
+              const SizedBox(height: 10),
+              Text(
+                _photoModelDraft != null || _hasPhotoModel
+                    ? 'Ready-made model (used if your photos are removed):'
+                    : 'Or pick a ready-made 3D crop:',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: TamuColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 6),
               if (snapshot.connectionState == ConnectionState.waiting)
                 const SizedBox(
-                    height: 48,
-                    child: Center(child: CircularProgressIndicator()))
+                  height: 48,
+                  child: Center(child: CircularProgressIndicator()),
+                )
               else if (snapshot.hasError)
                 const Text(
                   'Could not load the crop list. Check your connection.',
@@ -944,23 +1087,29 @@ class _AddCropScreenState extends State<AddCropScreen> {
                     ),
                     child: Row(
                       children: [
-                        Text(CropPhoto.emojiFor(chosen.category),
-                            style: const TextStyle(fontSize: 26)),
+                        Text(
+                          CropPhoto.emojiFor(chosen.category),
+                          style: const TextStyle(fontSize: 26),
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(chosen.label,
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700)),
+                              Text(
+                                chosen.label,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                               Text(
                                 'Life-size in AR · about '
                                 '${chosen.sizeCm?.round() ?? '?'} cm',
                                 style: const TextStyle(
-                                    fontSize: 12,
-                                    color: TamuColors.textSecondary),
+                                  fontSize: 12,
+                                  color: TamuColors.textSecondary,
+                                ),
                               ),
                             ],
                           ),
@@ -968,8 +1117,10 @@ class _AddCropScreenState extends State<AddCropScreen> {
                         IconButton(
                           tooltip: 'Remove 3D model',
                           onPressed: () => setState(() => _modelKey = null),
-                          icon: const Icon(Icons.close,
-                              color: TamuColors.textSecondary),
+                          icon: const Icon(
+                            Icons.close,
+                            color: TamuColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -978,9 +1129,11 @@ class _AddCropScreenState extends State<AddCropScreen> {
                 OutlinedButton.icon(
                   onPressed: models.isEmpty ? null : () => _chooseModel(models),
                   icon: Icon(chosen == null ? Icons.search : Icons.swap_horiz),
-                  label: Text(chosen == null
-                      ? 'Choose crop 3D model'
-                      : 'Change crop model'),
+                  label: Text(
+                    chosen == null
+                        ? 'Choose crop 3D model'
+                        : 'Change crop model',
+                  ),
                 ),
               ],
             ],
