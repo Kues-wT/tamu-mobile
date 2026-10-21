@@ -39,6 +39,26 @@ const _months = [
 
 String shortDate(DateTime t) => '${t.day} ${_months[t.month - 1]} ${t.year}';
 
+String dateTimeText(DateTime t) {
+  final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
+  final m = t.minute.toString().padLeft(2, '0');
+  return '${shortDate(t)}, $h:$m ${t.hour < 12 ? 'AM' : 'PM'}';
+}
+
+/// "25 Oct 2026, 10:00 AM to 12:00 PM" (date shown once on the same day).
+String windowText(DateTime? start, DateTime? end) {
+  if (start != null && end != null) {
+    final sameDay = DateUtils.isSameDay(start, end);
+    final endText = sameDay
+        ? dateTimeText(end).split(', ').last
+        : dateTimeText(end);
+    return '${dateTimeText(start)} to $endText';
+  }
+  if (start != null) return 'Starts ${dateTimeText(start)}';
+  if (end != null) return 'Until ${dateTimeText(end)}';
+  return '';
+}
+
 String errorText(Object e) => e.toString().replaceFirst('Exception: ', '');
 
 void showAdminSnack(BuildContext context, String text, {bool error = false}) {
@@ -335,6 +355,7 @@ class StatusPill extends StatelessWidget {
           bg: TamuColors.amberBg,
         );
       case 'confirmed':
+      case 'upcoming':
         return StatusPill(
           _label(status),
           fg: TamuColors.info,

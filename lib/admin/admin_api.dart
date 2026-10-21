@@ -215,6 +215,8 @@ class Announcement {
   final String message;
   final String audience; // all | farmer | buyer
   final int sentCount;
+  final DateTime? startsAt; // optional window, admin's local time
+  final DateTime? endsAt;
   final DateTime createdAt;
 
   Announcement.fromJson(Map<String, dynamic> j)
@@ -223,7 +225,22 @@ class Announcement {
       message = j['message'] as String,
       audience = j['audience'] as String,
       sentCount = j['sent_count'] as int,
+      startsAt = j['starts_at'] == null
+          ? null
+          : DateTime.parse(j['starts_at'] as String),
+      endsAt = j['ends_at'] == null
+          ? null
+          : DateTime.parse(j['ends_at'] as String),
       createdAt = _serverTime(j['created_at'] as String);
+
+  /// upcoming | ongoing | ended, or null when no times were set.
+  String? get phase {
+    if (startsAt == null && endsAt == null) return null;
+    final now = DateTime.now();
+    if (endsAt != null && now.isAfter(endsAt!)) return 'ended';
+    if (startsAt != null && now.isBefore(startsAt!)) return 'upcoming';
+    return 'ongoing';
+  }
 }
 
 class AdminApi {
@@ -375,11 +392,16 @@ class AdminApi {
     required String title,
     required String message,
     required String audience,
+    DateTime? startsAt,
+    DateTime? endsAt,
   }) async => Announcement.fromJson(
     await _post('/announcements', {
       'title': title,
       'message': message,
       'audience': audience,
+      // Local clock time, no zone: the backend keeps it as picked.
+      'starts_at': startsAt?.toIso8601String(),
+      'ends_at': endsAt?.toIso8601String(),
     }, 201),
   );
 }

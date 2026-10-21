@@ -18,6 +18,8 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
   final _title = TextEditingController();
   final _message = TextEditingController();
   String _audience = 'all';
+  DateTime? _startsAt; // optional, e.g. maintenance window
+  DateTime? _endsAt;
   bool _sending = false;
 
   List<Announcement> _items = [];
@@ -63,8 +65,66 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
     }
   }
 
+  Future<DateTime?> _pickDateTime(DateTime? current) async {
+    final now = DateTime.now();
+    final day = await showDatePicker(
+      context: context,
+      initialDate: current ?? now,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (day == null || !mounted) return null;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current ?? now),
+    );
+    if (time == null) return null;
+    return DateTime(day.year, day.month, day.day, time.hour, time.minute);
+  }
+
+  Widget _timeField(
+    String label,
+    DateTime? value,
+    ValueChanged<DateTime?> onChanged,
+  ) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        isDense: true,
+        suffixIcon: value == null
+            ? const Icon(Icons.event_outlined)
+            : IconButton(
+                tooltip: 'Clear',
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () => onChanged(null),
+              ),
+      ),
+      child: InkWell(
+        onTap: () async {
+          final picked = await _pickDateTime(value);
+          if (picked != null) onChanged(picked);
+        },
+        child: Text(
+          value == null ? 'Not set' : dateTimeText(value),
+          style: TextStyle(
+            fontSize: 15,
+            color: value == null ? TamuColors.hint : TamuColors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _send() async {
     if (!_form.currentState!.validate()) return;
+    if (_startsAt != null && _endsAt != null && !_endsAt!.isAfter(_startsAt!)) {
+      showAdminSnack(
+        context,
+        'The end time must be after the start time.',
+        error: true,
+      );
+      return;
+    }
     final yes = await confirmAction(
       context,
       title: 'Send announcement?',
@@ -81,10 +141,16 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
         title: _title.text.trim(),
         message: _message.text.trim(),
         audience: _audience,
+        startsAt: _startsAt,
+        endsAt: _endsAt,
       );
       if (!mounted) return;
       _title.clear();
       _message.clear();
+      setState(() {
+        _startsAt = null;
+        _endsAt = null;
+      });
       showAdminSnack(context, 'Sent to ${a.sentCount} users.');
       _load();
     } catch (e) {
@@ -128,7 +194,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _message,
-              maxLength: 300,
+              maxLength: 240,
               minLines: 3,
               maxLines: 5,
               decoration: const InputDecoration(
@@ -138,7 +204,38 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? 'Required' : null,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
+            const Text(
+              'Start and end time (optional)',
+              style: TextStyle(fontSize: 14, color: TamuColors.textSecondary),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'For maintenance, updates or events. Leave empty for a '
+              'normal announcement.',
+              style: TextStyle(fontSize: 13, color: TamuColors.hint),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _timeField(
+                    'Starts',
+                    _startsAt,
+                    (v) => setState(() => _startsAt = v),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _timeField(
+                    'Ends',
+                    _endsAt,
+                    (v) => setState(() => _endsAt = v),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: _sending ? null : _send,
               icon: const Icon(Icons.send),
@@ -190,6 +287,20 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(a.message, style: const TextStyle(fontSize: 14)),
+                    if (a.phase != null) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          StatusPill.forStatus(a.phase!),
+                          Text(
+                            windowText(a.startsAt, a.endsAt),
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Text(
                       '${_audienceLabel[a.audience] ?? a.audience} · '
