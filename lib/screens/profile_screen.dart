@@ -522,6 +522,114 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // -------------------------------------------------------- delete account
+
+  /// FR1: self-service deletion. Explains what happens, asks for the
+  /// password again, then signs out. The backend refuses it while the
+  /// user still has pending or confirmed orders.
+  Future<void> _deleteAccount() async {
+    final isFarmer = ApiService.currentUser?.isFarmer ?? false;
+    final passwordCtrl = TextEditingController();
+    String? error;
+    var busy = false;
+
+    final deleted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          Future<void> confirm() async {
+            if (passwordCtrl.text.isEmpty) {
+              setDialog(() => error = 'Enter your password to confirm.');
+              return;
+            }
+            setDialog(() {
+              busy = true;
+              error = null;
+            });
+            try {
+              await ApiService.deleteAccount(passwordCtrl.text);
+              if (ctx.mounted) Navigator.of(ctx).pop(true);
+            } catch (e) {
+              setDialog(() {
+                busy = false;
+                error = e.toString().replaceFirst('Exception: ', '');
+              });
+            }
+          }
+
+          return AlertDialog(
+            title: const Text('Delete your account?'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This cannot be undone.\n\n'
+                    '• Your name, phone, address and location are removed and '
+                    'you can no longer sign in.\n'
+                    '${isFarmer ? '• Your listings are removed from the marketplace.\n' : '• Your open crop requests are cancelled.\n'}'
+                    '• Past orders stay in the other person\'s history as '
+                    '"${isFarmer ? 'Deleted farmer' : 'Deleted user'}".\n\n'
+                    'Finish or cancel any active orders first.',
+                    style: const TextStyle(fontSize: 14, height: 1.45),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: passwordCtrl,
+                    obscureText: true,
+                    enabled: !busy,
+                    decoration: const InputDecoration(
+                      labelText: 'Current password',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => confirm(),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(error!,
+                        style: const TextStyle(
+                            fontSize: 13, color: TamuColors.danger)),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: busy ? null : () => Navigator.of(ctx).pop(false),
+                child: const Text('Keep my account'),
+              ),
+              TextButton(
+                onPressed: busy ? null : confirm,
+                child: busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Delete',
+                        style: TextStyle(color: TamuColors.danger)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    passwordCtrl.dispose();
+
+    if (deleted != true || !mounted) return;
+    // The messenger lives above the navigator, so the snackbar survives
+    // the jump to the sign-in screen.
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const login.LoginScreen()),
+      (route) => false,
+    );
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Your account was deleted.')),
+    );
+  }
+
   // ------------------------------------------------------------------ build
 
   @override
@@ -596,6 +704,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildRoleNote(),
                     const SizedBox(height: 12),
                     _buildBuyerSignOutButton(),
+                    const SizedBox(height: 4),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _deleteAccount,
+                        style: TextButton.styleFrom(
+                          foregroundColor: TamuColors.danger,
+                          minimumSize: const Size(0, 48),
+                        ),
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('Delete account',
+                            style: TextStyle(fontSize: 13)),
+                      ),
+                    ),
                     const SizedBox(height: 12),
                   ],
                 ),

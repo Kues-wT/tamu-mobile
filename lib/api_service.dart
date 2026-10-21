@@ -670,6 +670,23 @@ class ApiService {
     throw Exception(_errorMessage(response));
   }
 
+  /// POST /me/delete - FR1 self-service account deletion. Needs the
+  /// current password; refused while the user has active orders.
+  static Future<void> deleteAccount(String password) async {
+    final response = await http
+        .post(
+          Uri.parse('$kBaseUrl/me/delete'),
+          headers: _headers,
+          body: jsonEncode({'password': password}),
+        )
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode == 204 || response.statusCode == 200) {
+      await logout();
+      return;
+    }
+    throw Exception(_errorMessage(response));
+  }
+
   /// Clears the session in memory straight away, then the saved token.
   static Future<void> logout() async {
     _token = null;
