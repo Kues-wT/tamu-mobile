@@ -78,12 +78,12 @@ class _UsersPageState extends State<UsersPage> {
     if (u.isSuspended) {
       return _run(
         () => AdminApi.reactivateUser(u.id),
-        '${u.fullName} is active again.',
+        '${u.displayName} is active again.',
       );
     }
     final yes = await confirmAction(
       context,
-      title: 'Suspend ${u.fullName}?',
+      title: 'Suspend ${u.displayName}?',
       message:
           'They will not be able to sign in'
           '${u.role == 'farmer' ? ' and their listings will be hidden from buyers' : ''}'
@@ -92,14 +92,14 @@ class _UsersPageState extends State<UsersPage> {
       danger: true,
     );
     if (yes) {
-      _run(() => AdminApi.suspendUser(u.id), '${u.fullName} is suspended.');
+      _run(() => AdminApi.suspendUser(u.id), '${u.displayName} is suspended.');
     }
   }
 
   Future<void> _delete(AdminUser u) async {
     final yes = await confirmAction(
       context,
-      title: 'Delete ${u.fullName}?',
+      title: 'Delete ${u.displayName}?',
       message:
           'The account is closed and personal details are removed. '
           'Past orders stay in the records under "Deleted user". '
@@ -129,7 +129,7 @@ class _UsersPageState extends State<UsersPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(u.fullName),
+        title: Text(u.displayName),
         content: SizedBox(
           width: 380,
           child: Column(
@@ -137,6 +137,8 @@ class _UsersPageState extends State<UsersPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final (k, v) in [
+                ('Full name', u.fullName),
+                if (u.role == 'admin') ('Nickname', u.nickname ?? '-'),
                 ('Email', u.email),
                 ('Role', u.role),
                 ('Status', u.status),
@@ -246,9 +248,11 @@ class _UsersPageState extends State<UsersPage> {
                 for (final u in _users)
                   [
                     CellText(
-                      u.fullName,
+                      u.displayName,
                       sub: u.role == 'farmer'
                           ? (u.farmName ?? 'No farm name')
+                          : u.role == 'admin'
+                          ? '${u.fullName} · Joined ${shortDate(u.createdAt)}'
                           : 'Joined ${shortDate(u.createdAt)}',
                     ),
                     Text(
@@ -318,6 +322,7 @@ class _UserFormState extends State<_UserForm> {
   late final _phone = TextEditingController(text: widget.user?.phone);
   late final _farm = TextEditingController(text: widget.user?.farmName);
   late final _address = TextEditingController(text: widget.user?.address);
+  late final _nickname = TextEditingController(text: widget.user?.nickname);
   final _password = TextEditingController();
   late String _role = widget.user?.role ?? 'farmer';
   bool _saving = false;
@@ -327,7 +332,15 @@ class _UserFormState extends State<_UserForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _email, _phone, _farm, _address, _password]) {
+    for (final c in [
+      _name,
+      _email,
+      _phone,
+      _farm,
+      _address,
+      _nickname,
+      _password,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -348,6 +361,7 @@ class _UserFormState extends State<_UserForm> {
           phone: _phone.text.trim(),
           farmName: _role == 'farmer' ? _farm.text.trim() : null,
           address: _address.text.trim(),
+          nickname: _role == 'admin' ? _nickname.text.trim() : null,
         );
       } else {
         await AdminApi.createUser(
@@ -357,6 +371,7 @@ class _UserFormState extends State<_UserForm> {
           role: _role,
           phone: _phone.text.trim(),
           farmName: _role == 'farmer' ? _farm.text.trim() : null,
+          nickname: _role == 'admin' ? _nickname.text.trim() : null,
         );
       }
       if (mounted) Navigator.pop(context, true);
@@ -377,7 +392,7 @@ class _UserFormState extends State<_UserForm> {
   Widget build(BuildContext context) {
     const gap = SizedBox(height: 12);
     return AlertDialog(
-      title: Text(_editing ? 'Edit ${widget.user!.fullName}' : 'Add user'),
+      title: Text(_editing ? 'Edit ${widget.user!.displayName}' : 'Add user'),
       content: SizedBox(
         width: 420,
         child: Form(
@@ -405,12 +420,41 @@ class _UserFormState extends State<_UserForm> {
                   validator: _required,
                 ),
                 gap,
+                if (_role == 'admin') ...[
+                  gap,
+                  TextFormField(
+                    controller: _nickname,
+                    maxLength: 60,
+                    decoration: InputDecoration(
+                      labelText: 'Nickname',
+                      helperText:
+                          'Shown as "${_nickname.text.trim().isEmpty ? 'Nickname' : _nickname.text.trim()} (TAMU Admin)"',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    validator: _required,
+                  ),
+                ],
+                gap,
                 TextFormField(
                   controller: _email,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (v) => (v == null || !v.contains('@'))
-                      ? 'Enter a valid email'
-                      : null,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    helperText: _role == 'admin'
+                        ? 'Admins use an @tamu.my email'
+                        : null,
+                  ),
+                  validator: (v) {
+                    final email = (v ?? '').trim().toLowerCase();
+                    if (!email.contains('@')) return 'Enter a valid email';
+                    final tamu = email.endsWith('@tamu.my');
+                    if (_role == 'admin' && !tamu) {
+                      return 'Admin emails must end with @tamu.my';
+                    }
+                    if (_role != 'admin' && tamu) {
+                      return '@tamu.my is only for admins';
+                    }
+                    return null;
+                  },
                 ),
                 if (!_editing) ...[
                   gap,

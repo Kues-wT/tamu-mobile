@@ -151,7 +151,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     AuthField(
                       label: 'Email',
                       controller: _emailController,
-                      hint: 'nama@tamu.my',
+                      hint: 'nama@gmail.com',
                       keyboardType: TextInputType.emailAddress,
                       enabled: !_loading,
                       autofillHints: const [AutofillHints.email],

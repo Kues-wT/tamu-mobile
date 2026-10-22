@@ -733,10 +733,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ? 'Phone number not added'
         : user.phone!;
     final sampleEmails = {
-      'siti@tamu.my',
-      'jumat@tamu.my',
-      'gundoh@tamu.my',
-      'aina@tamu.my',
+      'siti.tamu@gmail.com',
+      'jumat.tamu@gmail.com',
+      'gundoh.tamu@gmail.com',
+      'aina.tamu@gmail.com',
+      'linda.tamu@gmail.com',
     };
     final isSampleAccount = sampleEmails.contains(user.email.toLowerCase());
 

@@ -107,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   AuthField(
                     label: 'Email',
                     controller: _emailController,
-                    hint: 'nama@tamu.my',
+                    hint: 'nama@gmail.com',
                     keyboardType: TextInputType.emailAddress,
                     enabled: !_loading,
                     autofillHints: const [AutofillHints.email],
@@ -199,9 +199,10 @@ class _LoginScreenState extends State<LoginScreen> {
             spacing: 7,
             runSpacing: 7,
             children: [
-              _demoChip('Puan Siti · farmer', 'siti@tamu.my'),
-              _demoChip('En. Jumat · farmer', 'jumat@tamu.my'),
-              _demoChip('Cik Aina · buyer', 'aina@tamu.my'),
+              _demoChip('Puan Siti · farmer', 'siti.tamu@gmail.com'),
+              _demoChip('En. Jumat · farmer', 'jumat.tamu@gmail.com'),
+              _demoChip('Cik Aina · buyer', 'aina.tamu@gmail.com'),
+              _demoChip('Puan Linda · buyer', 'linda.tamu@gmail.com'),
             ],
           ),
         ],

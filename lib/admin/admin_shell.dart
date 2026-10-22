@@ -204,8 +204,8 @@ class _AdminShellState extends State<AdminShell> {
                     backgroundColor: TamuColors.primary,
                     foregroundColor: Colors.white,
                     child: Text(
-                      (user?.fullName.isNotEmpty ?? false)
-                          ? user!.fullName[0].toUpperCase()
+                      (user?.displayName.isNotEmpty ?? false)
+                          ? user!.displayName[0].toUpperCase()
                           : 'A',
                     ),
                   ),
@@ -215,7 +215,7 @@ class _AdminShellState extends State<AdminShell> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          user?.fullName ?? 'Admin',
+                          user?.displayName ?? 'Admin',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

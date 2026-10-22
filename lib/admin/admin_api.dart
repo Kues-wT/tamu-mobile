@@ -18,6 +18,8 @@ class AdminUser {
   final int id;
   final String email;
   final String fullName;
+  final String? nickname;
+  final String displayName; // "Kues (TAMU Admin)" for admins
   final String role;
   final String? phone;
   final String? farmName;
@@ -31,6 +33,8 @@ class AdminUser {
     : id = j['id'] as int,
       email = j['email'] as String,
       fullName = j['full_name'] as String,
+      nickname = j['nickname'] as String?,
+      displayName = (j['display_name'] as String?) ?? j['full_name'] as String,
       role = j['role'] as String,
       phone = j['phone'] as String?,
       farmName = j['farm_name'] as String?,
@@ -308,6 +312,7 @@ class AdminApi {
     required String role,
     String? phone,
     String? farmName,
+    String? nickname,
   }) async => AdminUser.fromJson(
     await _post('/users', {
       'email': email,
@@ -316,6 +321,7 @@ class AdminApi {
       'role': role,
       if (phone != null && phone.isNotEmpty) 'phone': phone,
       if (farmName != null && farmName.isNotEmpty) 'farm_name': farmName,
+      if (nickname != null && nickname.isNotEmpty) 'nickname': nickname,
     }, 201),
   );
 
@@ -326,6 +332,7 @@ class AdminApi {
     String? phone,
     String? farmName,
     String? address,
+    String? nickname,
   }) async => AdminUser.fromJson(
     await _send(
       http.put(
@@ -337,6 +344,7 @@ class AdminApi {
           'phone': phone,
           'farm_name': farmName,
           'address': address,
+          'nickname': nickname,
         }),
       ),
     ),

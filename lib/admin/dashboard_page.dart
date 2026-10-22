@@ -48,7 +48,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final name = ApiService.currentUser?.fullName.split(' ').first ?? 'Admin';
+    final user = ApiService.currentUser;
+    final name = user?.nickname ?? user?.fullName.split(' ').first ?? 'Admin';
     final d = _data;
     return AdminPage(
       title: 'Dashboard',

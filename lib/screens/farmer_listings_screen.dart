@@ -39,9 +39,9 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
 
   bool _isSampleAccount() {
     const demoEmails = {
-      'siti@tamu.my',
-      'jumat@tamu.my',
-      'gundoh@tamu.my',
+      'siti.tamu@gmail.com',
+      'jumat.tamu@gmail.com',
+      'gundoh.tamu@gmail.com',
     };
     return demoEmails.contains(ApiService.currentUser?.email.toLowerCase());
   }

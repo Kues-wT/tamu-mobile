@@ -54,6 +54,8 @@ class AppUser {
   final String? address;
   final double? latitude;
   final double? longitude;
+  final String? nickname; // admins
+  final String displayName; // "Kues (TAMU Admin)" for admins
 
   AppUser({
     required this.id,
@@ -65,7 +67,9 @@ class AppUser {
     this.address,
     this.latitude,
     this.longitude,
-  });
+    this.nickname,
+    String? displayName,
+  }) : displayName = displayName ?? fullName;
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
         id: json['id'] as int,
@@ -77,6 +81,8 @@ class AppUser {
         address: json['address'] as String?,
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
+        nickname: json['nickname'] as String?,
+        displayName: json['display_name'] as String?,
       );
 
   bool get hasLocation => latitude != null && longitude != null;
