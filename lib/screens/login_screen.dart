@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
@@ -146,8 +147,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                   builder: (_) => const RegisterScreen()),
                             ),
                   ),
-                  const SizedBox(height: 14),
-                  _buildDemoAccounts(),
+                  // Demo shortcuts only in debug builds (flutter run). The
+                  // release APK and the public web admin never show them.
+                  if (kDebugMode) ...[
+                    const SizedBox(height: 14),
+                    _buildDemoAccounts(),
+                  ],
                 ],
               ),
             ),
