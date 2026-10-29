@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
 import 'package:model_viewer_plus/model_viewer_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../theme.dart';
 import '../api_service.dart';
@@ -148,6 +149,24 @@ class _ArViewScreenState extends State<ArViewScreen> {
     );
   }
 
+  /// Opens the TAMU web AR page for this crop in the phone's browser.
+  Future<void> _openWebAr() async {
+    final uri = Uri.parse('$kBaseUrl/webar/').replace(queryParameters: {
+      'model': p.modelUrl!,
+      'name': p.name,
+      'lang': AppLanguage.malay.value ? 'ms' : 'en',
+      // Catalogue and photo models are built at real size; a farmer's own
+      // scan has an unknown size.
+      'fixed': p.hasOwnScan ? '0' : '1',
+    });
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the browser.')),
+      );
+    }
+  }
+
   Widget _buildInfoPanel() {
     return Container(
       width: double.infinity,
@@ -216,14 +235,27 @@ class _ArViewScreenState extends State<ArViewScreen> {
                                 'room" and point your camera at a table or '
                                 'floor to see the crop at its real size.'
                           : 'Drag to turn, pinch to zoom to inspect the crop. '
-                                'Placing it in your room (AR) needs a phone '
-                                'with Google ARCore.',
+                                'To see it in your room, open the web AR view '
+                                'below.',
                       style: const TextStyle(fontSize: 14),
                     ),
                   ),
                 ],
               ),
             ),
+            // Phones without ARCore: markerless web AR (A-Frame + 8th Wall)
+            // opened in the browser, where it has full camera access.
+            if (_floorAr == false) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _openWebAr,
+                  icon: const Icon(Icons.view_in_ar),
+                  label: const Text('View in my room (web AR)'),
+                ),
+              ),
+            ],
           ],
         ],
       ),

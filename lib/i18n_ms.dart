@@ -724,4 +724,7 @@ const Map<String, String> kMalay = {
   'Pin on map': 'Pin di peta',
   'Loading': 'Memuatkan',
   'Point chosen': 'Titik dipilih',
+  'Drag to turn, pinch to zoom to inspect the crop. To see it in your room, open the web AR view below.': 'Seret untuk pusing, cubit untuk zum bagi memeriksa tanaman. Untuk melihatnya di bilik anda, buka paparan AR web di bawah.',
+  'View in my room (web AR)': 'Lihat di bilik saya (AR web)',
+  'Could not open the browser.': 'Pelayar tidak dapat dibuka.',
 };

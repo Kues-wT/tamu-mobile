@@ -44,5 +44,10 @@
         </intent>
         <!-- FR4: check whether Google ARCore (floor AR) is installed. -->
         <package android:name="com.google.ar.core"/>
+        <!-- FR4: open the web AR page in the phone's browser. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>
