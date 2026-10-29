@@ -170,13 +170,20 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   ],
                   if (point != null) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                        color: TamuColors.textSecondary,
-                      ),
+                    const Row(
+                      children: [
+                        Icon(Icons.check_circle,
+                            size: 16, color: TamuColors.primary),
+                        SizedBox(width: 6),
+                        Text(
+                          'Point chosen',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: TamuColors.primary,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 10),

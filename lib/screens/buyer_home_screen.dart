@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
+import '../widgets/skeleton.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/crop_photo.dart';
@@ -115,12 +116,8 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return ListView(
-                            children: const [
-                              SizedBox(height: 120),
-                              Center(child: CircularProgressIndicator()),
-                            ],
-                          );
+                          return const SkeletonList(
+                              kind: SkeletonKind.product, count: 4);
                         }
                         if (snapshot.hasError) {
                           return _buildError(snapshot.error.toString());

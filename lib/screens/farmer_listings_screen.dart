@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
+import '../widgets/skeleton.dart';
 import '../api_service.dart';
 import '../widgets/crop_photo.dart';
 import '../theme.dart';
@@ -120,7 +121,7 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
                       future: _productsFuture,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                          return const SkeletonList(kind: SkeletonKind.listing);
                         }
                         if (snapshot.hasError) {
                           return _buildError(snapshot.error.toString());
@@ -311,7 +312,12 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
           ),
           Column(
             children: [
-              _statusBadge(ended ? 'Ended' : 'Active'),
+              // Sold out: hidden from buyers until the farmer adds stock.
+              _statusBadge(ended
+                  ? 'Ended'
+                  : product.stockQuantity <= 0
+                      ? 'Sold out'
+                      : 'Active'),
               PopupMenuButton<String>(
                 tooltip: tr('Listing actions'),
                 onSelected: (value) {
@@ -337,18 +343,27 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
 
   Widget _statusBadge(String label) {
     final ended = label == 'Ended';
+    final soldOut = label == 'Sold out';
     return Container(
       margin: const EdgeInsets.only(right: 8, top: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: ended ? const Color(0xFFEEEEEE) : TamuColors.lightGreen,
+        color: soldOut
+            ? const Color(0xFFFDECEA)
+            : ended
+                ? const Color(0xFFEEEEEE)
+                : TamuColors.lightGreen,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(label,
           style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.bold,
-              color: ended ? TamuColors.textSecondary : TamuColors.primary)),
+              color: soldOut
+                  ? TamuColors.danger
+                  : ended
+                      ? TamuColors.textSecondary
+                      : TamuColors.primary)),
     );
   }
 

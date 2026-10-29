@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
+import '../widgets/skeleton.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../theme.dart';
@@ -1069,9 +1070,14 @@ class _AddCropScreenState extends State<AddCropScreen> {
               ),
               const SizedBox(height: 6),
               if (snapshot.connectionState == ConnectionState.waiting)
-                const SizedBox(
-                  height: 48,
-                  child: Center(child: CircularProgressIndicator()),
+                const Shimmer(
+                  child: Row(
+                    children: [
+                      Expanded(child: Bone(height: 48, radius: 12)),
+                      SizedBox(width: 8),
+                      Expanded(child: Bone(height: 48, radius: 12)),
+                    ],
+                  ),
                 )
               else if (snapshot.hasError)
                 const Text(

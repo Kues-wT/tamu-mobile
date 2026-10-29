@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
+import '../widgets/skeleton.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../theme.dart';
@@ -199,8 +200,7 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(
-                              child: CircularProgressIndicator());
+                          return const SkeletonList(kind: SkeletonKind.farm);
                         }
                         if (snapshot.hasError) {
                           return _buildError(snapshot.error.toString());

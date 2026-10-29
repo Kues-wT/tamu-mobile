@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
+import '../widgets/skeleton.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../theme.dart';
@@ -62,12 +63,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
     await _ordersFuture;
   }
 
-  Future<void> _setStatus(Order order, String status, String verb) async {
+  Future<void> _setStatus(Order order, String status, String verb,
+      {String? reason}) async {
     setState(() {
       _busyOrderId = order.id;
     });
     try {
-      await ApiService.updateOrderStatus(orderId: order.id, status: status);
+      await ApiService.updateOrderStatus(
+          orderId: order.id, status: status, reason: reason);
       if (!mounted) return;
       setState(() {
         _busyOrderId = null;
@@ -84,33 +87,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
+  /// Cancelling asks for a reason: the farmer must give one (the buyer sees
+  /// it), the buyer may.
   Future<void> _confirmCancel(Order order) async {
-    final yes = await showDialog<bool>(
+    final reason = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancel this order?'),
-        content: Text(
-          'Order #${order.id} for ${formatUnitQuantity(order.quantity, order.unit)} of '
-          '${order.productName ?? "this crop"} will be cancelled.'
-          '${_isFarmer && order.status == 'confirmed' ? '\n\nThe stock goes back to your listing and the buyer is notified. Only do this if you have agreed it with the buyer or they did not turn up.' : ''}',
-          style: const TextStyle(fontSize: 16),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Keep it', style: TextStyle(fontSize: 16)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'Cancel order',
-              style: TextStyle(fontSize: 16, color: TamuColors.danger),
-            ),
-          ),
-        ],
-      ),
+      builder: (ctx) => _CancelDialog(order: order, isFarmer: _isFarmer),
     );
-    if (yes == true) await _setStatus(order, 'cancelled', 'cancelled');
+    if (reason == null) return; // kept the order
+    await _setStatus(order, 'cancelled', 'cancelled',
+        reason: reason.isEmpty ? null : reason);
   }
 
   void _snack(String msg, Color color) {
@@ -186,9 +172,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         builder: (context, snapshot) {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
+                            return const SkeletonList(
+                                kind: SkeletonKind.order, count: 4);
                           }
                           if (snapshot.hasError) {
                             return _buildError(snapshot.error.toString());
@@ -498,6 +483,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   ],
                 ),
               ),
+            ],
+            if (order.status == 'cancelled') ...[
+              const SizedBox(height: 10),
+              _buildCancelNote(order),
             ],
             if (canCancel) ...[
               const SizedBox(height: 10),
@@ -901,6 +890,48 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
+  /// Who cancelled the order and why, shown to both sides.
+  Widget _buildCancelNote(Order order) {
+    final who = switch (order.cancelledBy) {
+      'farmer' => 'Cancelled by the farmer',
+      'buyer' => 'Cancelled by the buyer',
+      'system' => 'Cancelled automatically',
+      'admin' => 'Cancelled by TAMU admin',
+      _ => 'Cancelled',
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDECEA),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 17, color: TamuColors.danger),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(who,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: TamuColors.danger)),
+                if (order.cancelReason != null)
+                  Text(order.cancelReason!,
+                      style: const TextStyle(
+                          fontSize: 13, color: TamuColors.textPrimary)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<Widget> _buildFarmerActions(Order order) {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(15),
@@ -910,6 +941,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       fontWeight: FontWeight.w700,
     );
 
+    if (order.status == 'cancelled') return [_buildCancelNote(order)];
     if (order.status == 'pending') {
       return [
         Row(
@@ -1182,6 +1214,110 @@ class _OrdersScreenState extends State<OrdersScreen> {
         ),
         const SizedBox(height: 16),
         ElevatedButton(onPressed: _refresh, child: const Text('Try Again')),
+      ],
+    );
+  }
+}
+
+
+/// Confirms a cancellation and collects the reason. Pops the reason
+/// (empty when a buyer gives none), or null to keep the order.
+class _CancelDialog extends StatefulWidget {
+  final Order order;
+  final bool isFarmer;
+  const _CancelDialog({required this.order, required this.isFarmer});
+
+  @override
+  State<_CancelDialog> createState() => _CancelDialogState();
+}
+
+class _CancelDialogState extends State<_CancelDialog> {
+  final _reason = TextEditingController();
+  String? _error;
+
+  static const _farmerReasons = [
+    'Crop damaged or not ready',
+    'Not enough stock',
+    'Buyer did not turn up',
+    'Cannot deliver to this address',
+  ];
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _reason.text.trim();
+    if (widget.isFarmer && text.length < 3) {
+      setState(() => _error = 'Please give the buyer a reason for cancelling.');
+      return;
+    }
+    Navigator.of(context).pop(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final order = widget.order;
+    return AlertDialog(
+      title: const Text('Cancel this order?'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Order #${order.id} for ${formatUnitQuantity(order.quantity, order.unit)} of '
+              '${order.productName ?? "this crop"} will be cancelled.'
+              '${widget.isFarmer && order.status == 'confirmed' ? '\n\nThe stock goes back to your listing and the buyer is notified. Only do this if you have agreed it with the buyer or they did not turn up.' : ''}',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 14),
+            if (widget.isFarmer) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final r in _farmerReasons)
+                    ActionChip(
+                      label: Text(r, style: const TextStyle(fontSize: 13)),
+                      onPressed: () => setState(() {
+                        _reason.text = tr(r);
+                        _error = null;
+                      }),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
+            TextField(
+              controller: _reason,
+              maxLength: 300,
+              maxLines: 2,
+              onChanged: (_) => setState(() => _error = null),
+              decoration: InputDecoration(
+                labelText: tr(widget.isFarmer
+                    ? 'Reason for the buyer'
+                    : 'Reason (optional)'),
+                errorText: tr(_error),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Keep it', style: TextStyle(fontSize: 16)),
+        ),
+        TextButton(
+          onPressed: _submit,
+          child: const Text(
+            'Cancel order',
+            style: TextStyle(fontSize: 16, color: TamuColors.danger),
+          ),
+        ),
       ],
     );
   }

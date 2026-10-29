@@ -29,6 +29,14 @@ String? resolveServerUrl(String? url) {
   return '$kBaseUrl$url';
 }
 
+/// The server stores times in UTC without a time zone mark. Read them as
+/// UTC and show them in the phone's own time (Malaysia is UTC+8).
+DateTime parseServerTime(String value) {
+  final hasZone = value.endsWith('Z') ||
+      RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value);
+  return DateTime.parse(hasZone ? value : '${value}Z').toLocal();
+}
+
 String? _dateOnlyIso(DateTime? value) {
   if (value == null) return null;
   final year = value.year.toString().padLeft(4, '0');
@@ -119,7 +127,7 @@ class UserStats {
         ordersPlaced: json['orders_placed'] as int,
         ordersReceived: json['orders_received'] as int,
         completedOrders: json['completed_orders'] as int,
-        memberSince: DateTime.parse(json['member_since'] as String),
+        memberSince: parseServerTime(json['member_since'] as String),
       );
 }
 
@@ -226,6 +234,8 @@ class Order {
   final double? deliveryLongitude;
   final String? pickupPoint; // farmer's public point when ordered
   final String paymentMethod; // pay_on_handover | mock_online (demo only)
+  final String? cancelReason; // why it was cancelled, if it was
+  final String? cancelledBy; // buyer | farmer | system | admin
 
   Order({
     required this.id,
@@ -246,6 +256,8 @@ class Order {
     this.deliveryLongitude,
     this.pickupPoint,
     this.paymentMethod = 'pay_on_handover',
+    this.cancelReason,
+    this.cancelledBy,
   });
 
   bool get isDelivery => fulfilmentMethod == 'delivery';
@@ -274,7 +286,7 @@ class Order {
         unit: json['unit'] as String? ?? 'kg',
         totalPrice: (json['total_price'] as num).toDouble(),
         status: json['status'] as String,
-        createdAt: DateTime.parse(json['created_at'] as String),
+        createdAt: parseServerTime(json['created_at'] as String),
         productName: json['product_name'] as String?,
         farmerName: json['farmer_name'] as String?,
         productPhotoUrl: json['product_photo_url'] as String?,
@@ -284,6 +296,8 @@ class Order {
         deliveryLongitude: (json['delivery_longitude'] as num?)?.toDouble(),
         pickupPoint: json['pickup_point'] as String?,
         paymentMethod: json['payment_method'] as String? ?? 'pay_on_handover',
+        cancelReason: json['cancel_reason'] as String?,
+        cancelledBy: json['cancelled_by'] as String?,
       );
 }
 
@@ -481,7 +495,7 @@ class AppNotification {
         isRead: json['is_read'] as bool,
         refType: json['ref_type'] as String?,
         refId: json['ref_id'] as int?,
-        createdAt: DateTime.parse(json['created_at'] as String),
+        createdAt: parseServerTime(json['created_at'] as String),
       );
 }
 
@@ -498,6 +512,8 @@ class CropRequest {
   final String? acceptedByName;
   final int? convertedOrderId;
   final DateTime createdAt;
+  final int offerCount; // open offers (FR6 bidding)
+  final RequestOffer? myOffer; // the signed-in farmer's latest offer
 
   CropRequest({
     required this.id,
@@ -512,6 +528,8 @@ class CropRequest {
     this.acceptedByName,
     this.convertedOrderId,
     required this.createdAt,
+    this.offerCount = 0,
+    this.myOffer,
   });
 
   factory CropRequest.fromJson(Map<String, dynamic> json) => CropRequest(
@@ -526,7 +544,59 @@ class CropRequest {
         acceptedById: json['accepted_by_id'] as int?,
         acceptedByName: json['accepted_by_name'] as String?,
         convertedOrderId: json['converted_order_id'] as int?,
-        createdAt: DateTime.parse(json['created_at'] as String),
+        createdAt: parseServerTime(json['created_at'] as String),
+        offerCount: json['offer_count'] as int? ?? 0,
+        myOffer: json['my_offer'] == null
+            ? null
+            : RequestOffer.fromJson(json['my_offer'] as Map<String, dynamic>),
+      );
+
+  bool get isOpen => status == 'open';
+}
+
+/// FR6 bidding: a farmer's offer to supply a crop request.
+class RequestOffer {
+  final int id;
+  final int requestId;
+  final int farmerId;
+  final String farmerName;
+  final int productId;
+  final String? productName;
+  final String? productPhotoUrl;
+  final double pricePerKg;
+  final double totalPrice;
+  final String? note;
+  final String status; // open | accepted | declined | withdrawn
+  final DateTime createdAt;
+
+  RequestOffer({
+    required this.id,
+    required this.requestId,
+    required this.farmerId,
+    required this.farmerName,
+    required this.productId,
+    this.productName,
+    this.productPhotoUrl,
+    required this.pricePerKg,
+    required this.totalPrice,
+    this.note,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory RequestOffer.fromJson(Map<String, dynamic> json) => RequestOffer(
+        id: json['id'] as int,
+        requestId: json['request_id'] as int,
+        farmerId: json['farmer_id'] as int,
+        farmerName: json['farmer_name'] as String,
+        productId: json['product_id'] as int,
+        productName: json['product_name'] as String?,
+        productPhotoUrl: json['product_photo_url'] as String?,
+        pricePerKg: (json['price_per_kg'] as num).toDouble(),
+        totalPrice: (json['total_price'] as num).toDouble(),
+        note: json['note'] as String?,
+        status: json['status'] as String,
+        createdAt: parseServerTime(json['created_at'] as String),
       );
 
   bool get isOpen => status == 'open';
@@ -769,6 +839,7 @@ class ApiService {
     String? address,
     double? latitude,
     double? longitude,
+    bool clearLocation = false, // remove the map pin
   }) async {
     final response = await http
         .put(
@@ -779,8 +850,8 @@ class ApiService {
             'phone': ?phone,
             'farm_name': ?farmName,
             'address': ?address,
-            'latitude': ?latitude,
-            'longitude': ?longitude,
+            if (clearLocation) ...{'latitude': null, 'longitude': null}
+            else ...{'latitude': ?latitude, 'longitude': ?longitude},
           }),
         )
         .timeout(const Duration(seconds: 10));
@@ -1021,12 +1092,13 @@ class ApiService {
   static Future<Order> updateOrderStatus({
     required int orderId,
     required String status,
+    String? reason, // why it is cancelled; the farmer must give one
   }) async {
     final response = await http
         .patch(
           Uri.parse('$kBaseUrl/orders/$orderId/status'),
           headers: _headers,
-          body: jsonEncode({'status': status}),
+          body: jsonEncode({'status': status, 'reason': ?reason}),
         )
         .timeout(const Duration(seconds: 10));
 
@@ -1257,11 +1329,60 @@ class ApiService {
 
   /// FR6: accepting a request. Pass productId to also create an order
   /// for the buyer straight away (request-to-order conversion).
-  static Future<CropRequest> acceptRequest(int id, {int? productId}) async {
+  // ------------------------------------------- FR6 bidding (offers)
+
+  /// The buyer sees every offer on their request; a farmer only their own.
+  static Future<List<RequestOffer>> fetchOffers(int requestId) async {
     final r = await http
-        .post(Uri.parse('$kBaseUrl/requests/$id/accept'),
+        .get(Uri.parse('$kBaseUrl/requests/$requestId/offers'),
+            headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 200) {
+      return (jsonDecode(r.body) as List)
+          .map((e) => RequestOffer.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    throw Exception(_errorMessage(r));
+  }
+
+  /// A farmer offers to supply a request from one of their kg listings.
+  /// Leave [pricePerKg] null to use the listing's price.
+  static Future<RequestOffer> createOffer(
+    int requestId, {
+    required int productId,
+    double? pricePerKg,
+    String? note,
+  }) async {
+    final r = await http
+        .post(Uri.parse('$kBaseUrl/requests/$requestId/offers'),
             headers: _headers,
-            body: jsonEncode({'product_id': ?productId}))
+            body: jsonEncode({
+              'product_id': productId,
+              'price_per_kg': ?pricePerKg,
+              if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+            }))
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 201) return RequestOffer.fromJson(jsonDecode(r.body));
+    throw Exception(_errorMessage(r));
+  }
+
+  static Future<RequestOffer> withdrawOffer(int requestId, int offerId) async {
+    final r = await http
+        .post(
+            Uri.parse(
+                '$kBaseUrl/requests/$requestId/offers/$offerId/withdraw'),
+            headers: _headers)
+        .timeout(const Duration(seconds: 10));
+    if (r.statusCode == 200) return RequestOffer.fromJson(jsonDecode(r.body));
+    throw Exception(_errorMessage(r));
+  }
+
+  /// The buyer chooses an offer; it becomes a pending order.
+  static Future<CropRequest> acceptOffer(int requestId, int offerId) async {
+    final r = await http
+        .post(
+            Uri.parse('$kBaseUrl/requests/$requestId/offers/$offerId/accept'),
+            headers: _headers)
         .timeout(const Duration(seconds: 10));
     if (r.statusCode == 200) return CropRequest.fromJson(jsonDecode(r.body));
     throw Exception(_errorMessage(r));

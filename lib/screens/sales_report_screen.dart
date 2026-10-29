@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
+import '../widgets/skeleton.dart';
 import '../theme.dart';
 import '../api_service.dart';
 
@@ -60,7 +61,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               future: _reportFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const SalesReportSkeleton();
                 }
                 if (snapshot.hasError) {
                   return _buildError(snapshot.error.toString());

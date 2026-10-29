@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
+import '../widgets/skeleton.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import 'orders_screen.dart' as orders;
@@ -67,10 +68,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
     );
   }
 
-  /// FR6 request-to-order conversion.
-  /// The farmer picks one of their own listings, and accepting the
-  /// request immediately creates a pending order for the buyer.
-  Future<void> _accept(CropRequest r) async {
+  /// FR6 bidding: the farmer offers to supply the request from one of
+  /// their kg listings, at the listing's price or their own.
+  Future<void> _sendOffer(CropRequest r) async {
     List<Product> mine;
     try {
       mine = await ApiService.fetchMyProducts();
@@ -93,91 +93,86 @@ class _RequestsScreenState extends State<RequestsScreen> {
             (p.availableUntil == null || !p.availableUntil!.isBefore(today)))
         .toList();
 
-    final choice = await showDialog<_AcceptChoice>(
+    final draft = await showDialog<_OfferDraft>(
+      context: context,
+      builder: (ctx) => _OfferDialog(request: r, listings: usable),
+    );
+    if (draft == null || !mounted) return;
+
+    setState(() => _busyId = r.id);
+    try {
+      await ApiService.createOffer(
+        r.id,
+        productId: draft.productId,
+        pricePerKg: draft.pricePerKg,
+        note: draft.note,
+      );
+      if (!mounted) return;
+      setState(() => _busyId = null);
+      await _refresh();
+      if (!mounted) return;
+      _snack('Offer sent. The buyer will choose an offer.', TamuColors.primary);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busyId = null);
+      _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
+    }
+  }
+
+  Future<void> _withdrawOffer(CropRequest r, RequestOffer offer) async {
+    setState(() => _busyId = r.id);
+    try {
+      await ApiService.withdrawOffer(r.id, offer.id);
+      if (!mounted) return;
+      setState(() => _busyId = null);
+      await _refresh();
+      if (!mounted) return;
+      _snack('Offer withdrawn', TamuColors.primary);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busyId = null);
+      _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
+    }
+  }
+
+  /// FR6 bidding: the buyer compares the offers and chooses one, which
+  /// becomes a pending order.
+  Future<void> _showOffers(CropRequest r) async {
+    final chosen = await showModalBottomSheet<RequestOffer>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => _OffersSheet(request: r),
+    );
+    if (chosen == null || !mounted) return;
+
+    final sure = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Supply ${r.cropName}?'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${r.buyerName} needs ${r.quantityKg} kg.',
-                style: const TextStyle(fontSize: 15),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Choose the listing to supply it from. This creates a '
-                'pending order for the buyer:',
-                style: TextStyle(
-                    fontSize: 14, color: TamuColors.textSecondary),
-              ),
-              const SizedBox(height: 10),
-              if (usable.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF8E1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'To accept, you need a listing on sale today, sold by kg, with at least '
-                    '${r.quantityKg} kg in stock. Add or update one in My '
-                    'listings, then come back.',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                )
-              else
-                ...usable.map((p) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(ctx)
-                            .pop(_AcceptChoice(productId: p.id)),
-                        style: OutlinedButton.styleFrom(
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(p.name,
-                                style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600)),
-                            Text(
-                              'RM ${p.pricePerUnit.toStringAsFixed(2)}/kg  ·  '
-                              '${p.stockQuantity} kg in stock  ·  total RM '
-                              '${(p.pricePerUnit * r.quantityKg).toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: TamuColors.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )),
-            ],
-          ),
+        title: const Text('Accept this offer?'),
+        content: Text(
+          '${chosen.farmerName} supplies ${r.quantityKg} kg of ${r.cropName} '
+          'for RM ${chosen.totalPrice.toStringAsFixed(2)}. The other offers '
+          'will be declined.',
+          style: const TextStyle(fontSize: 15),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(fontSize: 16)),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Accept offer'),
           ),
         ],
       ),
     );
+    if (sure != true || !mounted) return;
 
-    if (choice == null || !mounted) return;
-
-    setState(() {
-      _busyId = r.id;
-    });
+    setState(() => _busyId = r.id);
     try {
-      final updated =
-          await ApiService.acceptRequest(r.id, productId: choice.productId);
+      final updated = await ApiService.acceptOffer(r.id, chosen.id);
       if (!mounted) return;
       setState(() {
         _busyId = null;
@@ -190,8 +185,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
         SnackBar(
           backgroundColor: TamuColors.primary,
           content: Text(
-            'Order #${updated.convertedOrderId} created. Confirm it in '
-            'Orders (Pending).',
+            'Order #${updated.convertedOrderId} created. The farmer will '
+            'confirm it.',
             style: const TextStyle(fontSize: 16, color: Colors.white),
           ),
           action: SnackBarAction(
@@ -203,9 +198,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _busyId = null;
-      });
+      setState(() => _busyId = null);
       _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
     }
   }
@@ -399,8 +392,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(
-                              child: CircularProgressIndicator());
+                          return const SkeletonList(
+                              kind: SkeletonKind.request, count: 4);
                         }
                         if (snapshot.hasError) {
                           return _buildError(snapshot.error.toString());
@@ -473,7 +466,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
           SizedBox(width: 9),
           Expanded(
             child: Text(
-              'First valid acceptance wins. Once one farmer accepts, the request closes for everyone else.',
+              'Send an offer with your price. The buyer chooses one offer, '
+              'and the request then closes for everyone else.',
               style: TextStyle(fontSize: 13, color: TamuColors.textPrimary),
             ),
           ),
@@ -686,14 +680,27 @@ class _RequestsScreenState extends State<RequestsScreen> {
           ] else ...[
             if (_isFarmer && r.isOpen) ...[
               const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () => _accept(r),
-                icon: const Icon(Icons.handshake_outlined),
-                label: const Text('I can supply this'),
-              ),
+              if (r.myOffer != null && r.myOffer!.isOpen)
+                _buildMyOffer(r, r.myOffer!)
+              else
+                ElevatedButton.icon(
+                  onPressed: () => _sendOffer(r),
+                  icon: const Icon(Icons.handshake_outlined),
+                  label: const Text('Send an offer'),
+                ),
             ],
             if (mine && r.isOpen) ...[
               const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () => _showOffers(r),
+                icon: const Icon(Icons.local_offer_outlined),
+                label: Text(r.offerCount == 0
+                    ? 'No offers yet'
+                    : r.offerCount == 1
+                        ? 'See 1 offer'
+                        : 'See ${r.offerCount} offers'),
+              ),
+              const SizedBox(height: 8),
               OutlinedButton(
                 onPressed: () => _cancel(r),
                 style: OutlinedButton.styleFrom(
@@ -704,6 +711,41 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
             ],
           ],
+        ],
+      ),
+    );
+  }
+
+  /// The farmer's own open offer, with a way to take it back.
+  Widget _buildMyOffer(CropRequest r, RequestOffer offer) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: TamuColors.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your offer: RM ${offer.pricePerKg.toStringAsFixed(2)}/kg · '
+            'total RM ${offer.totalPrice.toStringAsFixed(2)}',
+            style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: TamuColors.primary),
+          ),
+          const Text('Waiting for the buyer to choose',
+              style: TextStyle(fontSize: 13, color: TamuColors.textSecondary)),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => _withdrawOffer(r, offer),
+              style: TextButton.styleFrom(foregroundColor: TamuColors.danger),
+              child: const Text('Withdraw offer'),
+            ),
+          ),
         ],
       ),
     );
@@ -799,7 +841,325 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
 /// What the farmer chose in the accept dialog.
 /// productId == null means "accept without creating an order".
-class _AcceptChoice {
+class _OfferDraft {
   final int productId;
-  const _AcceptChoice({required this.productId});
+  final double pricePerKg;
+  final String? note;
+  const _OfferDraft(
+      {required this.productId, required this.pricePerKg, this.note});
+}
+
+/// FR6 bidding: the farmer picks a listing, sets a price per kg (the
+/// listing's price by default) and can add a note for the buyer.
+class _OfferDialog extends StatefulWidget {
+  final CropRequest request;
+  final List<Product> listings;
+  const _OfferDialog({required this.request, required this.listings});
+
+  @override
+  State<_OfferDialog> createState() => _OfferDialogState();
+}
+
+class _OfferDialogState extends State<_OfferDialog> {
+  Product? _listing;
+  final _price = TextEditingController();
+  final _note = TextEditingController();
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.listings.isNotEmpty) _choose(widget.listings.first);
+  }
+
+  @override
+  void dispose() {
+    _price.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  void _choose(Product p) {
+    _listing = p;
+    _price.text = p.pricePerUnit.toStringAsFixed(2);
+    _error = null;
+  }
+
+  void _submit() {
+    final price = double.tryParse(_price.text.trim());
+    final max = widget.request.maxPricePerKg;
+    String? error;
+    if (price == null || price <= 0) {
+      error = 'Enter a price per kg, e.g. 4.50';
+    } else if (max != null && price > max) {
+      error = 'The buyer pays at most RM ${max.toStringAsFixed(2)} per kg.';
+    }
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    Navigator.of(context).pop(_OfferDraft(
+      productId: _listing!.id,
+      pricePerKg: price!,
+      note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.request;
+    final price = double.tryParse(_price.text.trim());
+    return AlertDialog(
+      title: Text('Offer to supply ${r.cropName}'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${r.buyerName} needs ${r.quantityKg} kg.',
+                style: const TextStyle(fontSize: 15)),
+            if (r.maxPricePerKg != null)
+              Text('Up to RM ${r.maxPricePerKg!.toStringAsFixed(2)} /kg',
+                  style: const TextStyle(
+                      fontSize: 13, color: TamuColors.textSecondary)),
+            const SizedBox(height: 12),
+            if (widget.listings.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8E1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'To send an offer, you need a listing on sale today, sold '
+                  'by kg, with at least ${r.quantityKg} kg in stock. Add or '
+                  'update one in My listings, then come back.',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              )
+            else ...[
+              const Text('Supply it from:',
+                  style: TextStyle(
+                      fontSize: 14, color: TamuColors.textSecondary)),
+              const SizedBox(height: 6),
+              for (final p in widget.listings)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: OutlinedButton(
+                    onPressed: () => setState(() => _choose(p)),
+                    style: OutlinedButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      backgroundColor: _listing == p
+                          ? TamuColors.primary.withValues(alpha: 0.08)
+                          : null,
+                      side: BorderSide(
+                          color: _listing == p
+                              ? TamuColors.primary
+                              : TamuColors.border,
+                          width: _listing == p ? 2 : 1),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                            _listing == p
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            size: 18,
+                            color: TamuColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(p.name,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                'RM ${p.pricePerUnit.toStringAsFixed(2)}/kg  ·  '
+                                '${p.stockQuantity} kg in stock',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: TamuColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _price,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() => _error = null),
+                decoration: InputDecoration(
+                  labelText: tr('Your price per kg (RM)'),
+                  prefixText: 'RM ',
+                  errorText: tr(_error),
+                ),
+              ),
+              if (price != null && price > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Total for the buyer: RM '
+                    '${(price * r.quantityKg).toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: TamuColors.primary),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _note,
+                maxLength: 300,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: tr('Note for the buyer (optional)'),
+                  hintText: tr('e.g. Harvested this morning'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel', style: TextStyle(fontSize: 16)),
+        ),
+        if (widget.listings.isNotEmpty)
+          ElevatedButton(
+            onPressed: _submit,
+            child: const Text('Send offer'),
+          ),
+      ],
+    );
+  }
+}
+
+/// FR6 bidding: the buyer's list of offers on one request, cheapest
+/// first. Returns the offer the buyer chooses.
+class _OffersSheet extends StatelessWidget {
+  final CropRequest request;
+  const _OffersSheet({required this.request});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75),
+        child: FutureBuilder<List<RequestOffer>>(
+          future: ApiService.fetchOffers(request.id),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Shimmer(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SkeletonCard(kind: SkeletonKind.offer),
+                      SizedBox(height: 10),
+                      SkeletonCard(kind: SkeletonKind.offer),
+                    ],
+                  ),
+                ),
+              );
+            }
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(snapshot.error
+                    .toString()
+                    .replaceFirst('Exception: ', '')),
+              );
+            }
+            final offers =
+                (snapshot.data ?? []).where((o) => o.isOpen).toList();
+            return ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: [
+                Text('Offers for ${request.cropName}',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('${request.quantityKg} kg needed',
+                    style: const TextStyle(
+                        fontSize: 14, color: TamuColors.textSecondary)),
+                const SizedBox(height: 12),
+                if (offers.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'No offers yet. Farmers will be notified about your '
+                      'request.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 14, color: TamuColors.textSecondary),
+                    ),
+                  ),
+                for (final o in offers)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: TamuColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(o.farmerName,
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700)),
+                            ),
+                            Text('RM ${o.totalPrice.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: TamuColors.primary)),
+                          ],
+                        ),
+                        Text(
+                          '${o.productName ?? request.cropName}  ·  RM '
+                          '${o.pricePerKg.toStringAsFixed(2)}/kg',
+                          style: const TextStyle(
+                              fontSize: 13, color: TamuColors.textSecondary),
+                        ),
+                        if (o.note != null) ...[
+                          const SizedBox(height: 6),
+                          Text('"${o.note}"',
+                              style: const TextStyle(
+                                  fontSize: 14, fontStyle: FontStyle.italic)),
+                        ],
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.of(context).pop(o),
+                            child: const Text('Choose this offer'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }

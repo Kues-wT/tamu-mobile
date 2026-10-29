@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
+import '../widgets/skeleton.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import 'orders_screen.dart' as orders;
@@ -127,8 +128,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(
-                              child: CircularProgressIndicator());
+                          return const SkeletonList(
+                              kind: SkeletonKind.notification, count: 6);
                         }
                         if (snapshot.hasError) {
                           return _buildError(snapshot.error.toString());

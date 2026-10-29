@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide Text;
 import '../i18n.dart';
+import '../widgets/skeleton.dart';
 import '../api_service.dart';
 import '../theme.dart';
 import '../widgets/farmer_bottom_nav.dart';
@@ -316,12 +317,26 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
         if (!snapshot.hasData) {
           return Container(
             height: 150,
-            alignment: Alignment.center,
+            alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
               color: TamuColors.primary,
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const CircularProgressIndicator(color: Colors.white),
+            // Placeholder lines in the shape of the sales card.
+            padding: const EdgeInsets.all(18),
+            child: const Shimmer(
+              onDark: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Bone(width: 120, height: 13),
+                  SizedBox(height: 16),
+                  Bone(width: 150, height: 28),
+                  SizedBox(height: 10),
+                  Bone(width: 110, height: 12),
+                ],
+              ),
+            ),
           );
         }
         final report = snapshot.data!;

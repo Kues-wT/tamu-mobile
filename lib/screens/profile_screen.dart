@@ -3,11 +3,11 @@ import '../i18n.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/farmer_bottom_nav.dart';
+import '../widgets/map_pin_field.dart';
 import 'login_screen.dart' as login;
 import 'orders_screen.dart' as orders;
 import 'requests_screen.dart' as requests;
 import 'notifications_screen.dart' as notifications;
-import 'location_picker_screen.dart' as location_picker;
 
 /// Profile screen (part of FR1 User Management).
 /// Buyers and farmers share the Figma-style account page; farmers also get
@@ -39,23 +39,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nameCtrl = TextEditingController(text: user.fullName);
     final phoneCtrl = TextEditingController(text: user.phone ?? '');
     final addressCtrl = TextEditingController(text: user.address ?? '');
-    final latitudeCtrl =
-        TextEditingController(text: user.latitude?.toString() ?? '');
-    final longitudeCtrl =
-        TextEditingController(text: user.longitude?.toString() ?? '');
+    final pin = MapPinController(
+        latitude: user.latitude, longitude: user.longitude);
     final formKey = GlobalKey<FormState>();
-
-    String? validateCoordinate(
-        String? value, String label, String otherValue, double min, double max) {
-      final raw = (value ?? '').trim();
-      final other = otherValue.trim();
-      if (raw.isEmpty && other.isEmpty) return null;
-      if (raw.isEmpty) return 'Enter $label too';
-      final number = double.tryParse(raw);
-      if (number == null) return 'Numbers only';
-      if (number < min || number > max) return 'Use $min to $max';
-      return null;
-    }
 
     final saved = await showDialog<bool>(
       context: context,
@@ -103,66 +89,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       prefixIcon: Icon(Icons.location_on_outlined),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    childrenPadding: EdgeInsets.zero,
-                    title: const Text('Map pin (optional)',
+                  const SizedBox(height: TamuSizes.gap),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Map pin (optional)',
                         style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w600)),
-                    subtitle: Text(
-                      user.hasLocation
-                          ? 'Used to estimate nearby farms'
-                          : 'Leave blank to use Tamparuli town',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: latitudeCtrl,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true, signed: true),
-                              style: const TextStyle(fontSize: 14),
-                              decoration: InputDecoration(
-                                labelText: tr('Latitude'),
-                                hintText: tr('6.1447'),
-                              ),
-                              validator: trValidator((v) => validateCoordinate(
-                                v,
-                                'latitude',
-                                longitudeCtrl.text,
-                                -90,
-                                90,
-                              )),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextFormField(
-                              controller: longitudeCtrl,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true, signed: true),
-                              style: const TextStyle(fontSize: 14),
-                              decoration: InputDecoration(
-                                labelText: tr('Longitude'),
-                                hintText: tr('116.2757'),
-                              ),
-                              validator: trValidator((v) => validateCoordinate(
-                                v,
-                                'longitude',
-                                latitudeCtrl.text,
-                                -180,
-                                180,
-                              )),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  MapPinField(
+                    controller: pin,
+                    isFarmer: false,
+                    emptyText: 'Pin where you are to see the nearest farms. '
+                        'Without a pin, distances are measured from '
+                        'Tamparuli town.',
                   ),
                 ],
               ],
@@ -190,8 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       nameCtrl.dispose();
       phoneCtrl.dispose();
       addressCtrl.dispose();
-      latitudeCtrl.dispose();
-      longitudeCtrl.dispose();
+      pin.dispose();
       return;
     }
 
@@ -200,12 +139,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         fullName: nameCtrl.text.trim(),
         phone: phoneCtrl.text.trim(),
         address: user.isBuyer ? addressCtrl.text.trim() : null,
-        latitude: user.isBuyer
-            ? double.tryParse(latitudeCtrl.text.trim())
-            : null,
-        longitude: user.isBuyer
-            ? double.tryParse(longitudeCtrl.text.trim())
-            : null,
+        latitude: user.isBuyer ? pin.latitude : null,
+        longitude: user.isBuyer ? pin.longitude : null,
+        clearLocation: user.isBuyer && !pin.hasPin && user.hasLocation,
       );
       if (!mounted) return;
       _changed = true;
@@ -218,8 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       nameCtrl.dispose();
       phoneCtrl.dispose();
       addressCtrl.dispose();
-      latitudeCtrl.dispose();
-      longitudeCtrl.dispose();
+      pin.dispose();
     }
   }
 
@@ -318,15 +253,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // -------------------------------------------------------------- location
 
   /// FR3: set the farm's public selling/pickup point or the buyer's search
-  /// location. Users may pick a point on the real map or enter coordinates.
+  /// location by pinning it on the real map.
   Future<void> _editLocation() async {
     final user = ApiService.currentUser!;
     final farmCtrl = TextEditingController(text: user.farmName ?? '');
     final addrCtrl = TextEditingController(text: user.address ?? '');
-    final latCtrl =
-        TextEditingController(text: user.latitude?.toString() ?? '');
-    final lngCtrl =
-        TextEditingController(text: user.longitude?.toString() ?? '');
+    final pin = MapPinController(
+        latitude: user.latitude, longitude: user.longitude);
     final formKey = GlobalKey<FormState>();
 
     final saved = await showDialog<bool>(
@@ -367,90 +300,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: TamuSizes.gap),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: latCtrl,
-                        style: const TextStyle(fontSize: 16),
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true, signed: true),
-                        decoration: InputDecoration(
-                          labelText: tr('Latitude'),
-                          hintText: tr('6.1447'),
-                        ),
-                        validator: trValidator((v) {
-                          if (v == null || v.trim().isEmpty) return null;
-                          final n = double.tryParse(v.trim());
-                          if (n == null) return 'Numbers only';
-                          if (n < -90 || n > 90) return '-90 to 90';
-                          return null;
-                        }),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextFormField(
-                        controller: lngCtrl,
-                        style: const TextStyle(fontSize: 16),
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true, signed: true),
-                        decoration: InputDecoration(
-                          labelText: tr('Longitude'),
-                          hintText: tr('116.2757'),
-                        ),
-                        validator: trValidator((v) {
-                          if (v == null || v.trim().isEmpty) return null;
-                          final n = double.tryParse(v.trim());
-                          if (n == null) return 'Numbers only';
-                          if (n < -180 || n > 180) return '-180 to 180';
-                          return null;
-                        }),
-                      ),
-                    ),
-                  ],
+                MapPinField(
+                  controller: pin,
+                  isFarmer: user.isFarmer,
+                  emptyText: user.isFarmer
+                      ? 'Pin your public selling or pickup point so buyers '
+                          'can find you. Choose a market or meeting point, '
+                          'not your home.'
+                      : 'Pin your location to see the nearest farms.',
                 ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final picked = await Navigator.of(ctx)
-                        .push<location_picker.LocationPickResult>(
-                      MaterialPageRoute(
-                        builder: (_) => location_picker.LocationPickerScreen(
-                          initialLatitude: double.tryParse(latCtrl.text.trim()) ??
-                              user.latitude,
-                          initialLongitude:
-                              double.tryParse(lngCtrl.text.trim()) ??
-                                  user.longitude,
-                          isFarmer: user.isFarmer,
-                        ),
-                      ),
-                    );
-                    if (picked == null) return;
-                    latCtrl.text = picked.latitude.toStringAsFixed(6);
-                    lngCtrl.text = picked.longitude.toStringAsFixed(6);
-                  },
-                  icon: const Icon(Icons.map_outlined),
-                  label: Text(
-                    user.isFarmer
-                        ? 'Choose public pickup point on map'
-                        : 'Choose location on map',
+                if (user.isFarmer) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Buyers see this point as your public selling / pickup '
+                    'location.',
+                    style: TextStyle(
+                        fontSize: 12, color: TamuColors.textSecondary),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: TamuColors.lightGreen,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    user.isFarmer
-                        ? 'Buyers can see this point as your public selling / pickup location. Choose a market or meeting point, not a private home address unless you intend to share it. Use the map picker above or enter coordinates manually.'
-                        : 'Use the map picker above or enter coordinates manually to set your search location.',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ),
+                ],
               ],
             ),
           ),
@@ -472,14 +339,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (saved != true) return;
+    if (saved != true) {
+      pin.dispose();
+      return;
+    }
 
     try {
       await ApiService.updateProfile(
         farmName: user.isFarmer ? farmCtrl.text.trim() : null,
         address: addrCtrl.text.trim(),
-        latitude: double.tryParse(latCtrl.text.trim()),
-        longitude: double.tryParse(lngCtrl.text.trim()),
+        latitude: pin.latitude,
+        longitude: pin.longitude,
+        clearLocation: !pin.hasPin && user.hasLocation,
       );
       if (!mounted) return;
       _changed = true;
