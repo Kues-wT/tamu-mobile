@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../api_service.dart';
 import '../theme.dart';
 import '../widgets/farmer_bottom_nav.dart';
@@ -59,8 +60,8 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
     final now = DateTime.now();
-    return '${weekdays[now.weekday - 1].toUpperCase()}, '
-        '${now.day} ${months[now.month - 1].toUpperCase()}';
+    return '${tr(weekdays[now.weekday - 1]).toUpperCase()}, '
+        '${now.day} ${tr(months[now.month - 1]).toUpperCase()}';
   }
 
   bool get _isSampleAccount {

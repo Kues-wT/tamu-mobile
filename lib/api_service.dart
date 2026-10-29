@@ -14,6 +14,13 @@ const String kBaseUrl = String.fromEnvironment(
   defaultValue: 'http://10.115.117.118:8000',
 );
 
+/// True for the cloud backend (Render), false for the laptop on Wi-Fi.
+final bool kCloudBackend = kBaseUrl.startsWith('https://');
+
+/// How long the startup check keeps trying: the free cloud server sleeps
+/// after 15 minutes unused and takes up to a minute to start again.
+const Duration kServerWakeTime = Duration(seconds: 75);
+
 /// Makes a server file URL usable by the app. The backend sends product
 /// photos as full URLs, but order photos as paths like "/photos/x.jpg".
 String? resolveServerUrl(String? url) {
@@ -616,25 +623,32 @@ class ApiService {
     }
     if (saved == null || saved.isEmpty) return SessionRestore.none;
 
-    try {
-      final response = await http.get(
-        Uri.parse('$kBaseUrl/me'),
-        headers: {'Authorization': 'Bearer $saved'},
-      ).timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
-        _token = saved;
-        currentUser = AppUser.fromJson(jsonDecode(response.body));
-        return SessionRestore.restored;
+    // The free cloud server sleeps when unused and needs up to a minute to
+    // wake, answering 502/503 or nothing meanwhile. Keep asking until then.
+    final deadline = DateTime.now().add(kServerWakeTime);
+    while (true) {
+      try {
+        final response = await http.get(
+          Uri.parse('$kBaseUrl/me'),
+          headers: {'Authorization': 'Bearer $saved'},
+        ).timeout(const Duration(seconds: 30));
+        if (response.statusCode == 200) {
+          _token = saved;
+          currentUser = AppUser.fromJson(jsonDecode(response.body));
+          return SessionRestore.restored;
+        }
+        if (response.statusCode == 401) {
+          // Expired (7 days) or the account no longer exists.
+          await _clearSavedToken();
+          return SessionRestore.expired;
+        }
+        if (response.statusCode < 500) return SessionRestore.offline;
+      } catch (_) {
+        // No answer yet: server waking, backend not running or no
+        // internet. Keep the token for a retry.
       }
-      if (response.statusCode == 401) {
-        // Expired (7 days) or the account no longer exists.
-        await _clearSavedToken();
-        return SessionRestore.expired;
-      }
-      return SessionRestore.offline;
-    } catch (_) {
-      // Backend not running / wrong Wi-Fi. Keep the token for a retry.
-      return SessionRestore.offline;
+      if (DateTime.now().isAfter(deadline)) return SessionRestore.offline;
+      await Future.delayed(const Duration(seconds: 3));
     }
   }
 
@@ -673,7 +687,9 @@ class ApiService {
       Uri.parse('$kBaseUrl/login'),
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: {'username': email, 'password': password},
-    ).timeout(const Duration(seconds: 10));
+      // Longer than other calls: it may be the request that wakes the
+      // sleeping cloud server.
+    ).timeout(kServerWakeTime);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -709,7 +725,7 @@ class ApiService {
               'farm_name': farmName,
           }),
         )
-        .timeout(const Duration(seconds: 10));
+        .timeout(kServerWakeTime); // may wake the sleeping server, like login
 
     if (response.statusCode == 201 || response.statusCode == 200) {
       final data = jsonDecode(response.body);

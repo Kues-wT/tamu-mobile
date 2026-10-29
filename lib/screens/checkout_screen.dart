@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../theme.dart';
@@ -183,10 +184,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     maxLines: 3,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration(
-                      labelText: _pin == null
+                      labelText: tr(_pin == null
                           ? 'Delivery address'
-                          : 'Address or landmark (optional)',
-                      hintText: 'e.g. Kg. Rungus, near the surau',
+                          : 'Address or landmark (optional)'),
+                      hintText: tr('e.g. Kg. Rungus, near the surau'),
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
@@ -511,7 +512,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
               if (pin != null)
                 IconButton(
-                  tooltip: 'Remove pin',
+                  tooltip: tr('Remove pin'),
                   onPressed: () => setState(() => _pin = null),
                   icon: const Icon(
                     Icons.close,

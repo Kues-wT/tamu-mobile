@@ -1,4 +1,7 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../admin/admin_shell.dart';
@@ -17,6 +20,8 @@ class StartupScreen extends StatefulWidget {
 
 class _StartupScreenState extends State<StartupScreen> {
   bool _offline = false;
+  bool _slow = false; // still waiting after a few seconds
+  Timer? _slowTimer;
 
   @override
   void initState() {
@@ -24,11 +29,23 @@ class _StartupScreenState extends State<StartupScreen> {
     _restore();
   }
 
+  @override
+  void dispose() {
+    _slowTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _restore() async {
     // Not on the first call: setState is not allowed inside initState.
     if (_offline) setState(() => _offline = false);
+    _slowTimer?.cancel();
+    _slowTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _slow = true);
+    });
     final result = await ApiService.restoreSession();
+    _slowTimer?.cancel();
     if (!mounted) return;
+    _slow = false;
 
     switch (result) {
       case SessionRestore.restored:
@@ -81,9 +98,19 @@ class _StartupScreenState extends State<StartupScreen> {
                         letterSpacing: 3,
                         color: Colors.white)),
                 const SizedBox(height: 28),
-                if (!_offline)
-                  const CircularProgressIndicator(color: TamuColors.secondary)
-                else ...[
+                if (!_offline) ...[
+                  const CircularProgressIndicator(color: TamuColors.secondary),
+                  if (_slow) ...[
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Starting the TAMU server.\n'
+                      'This can take up to a minute.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 14, height: 1.5, color: Color(0xFFB8D0BA)),
+                    ),
+                  ],
+                ] else ...[
                   const Icon(Icons.wifi_off,
                       size: 36, color: Color(0xFFB8D0BA)),
                   const SizedBox(height: 10),
@@ -94,9 +121,11 @@ class _StartupScreenState extends State<StartupScreen> {
                           fontWeight: FontWeight.w700,
                           color: Colors.white)),
                   const SizedBox(height: 6),
-                  const Text(
-                    'Check that the backend is running and that your phone '
-                    'is on the same Wi-Fi as the laptop.',
+                  Text(
+                    kCloudBackend
+                        ? 'Check your internet connection and try again.'
+                        : 'Check that the backend is running and that your '
+                            'phone is on the same Wi-Fi as the laptop.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: 13, height: 1.5, color: Color(0xFFB8D0BA)),

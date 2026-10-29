@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/auth_widgets.dart';
@@ -131,9 +132,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       enabled: !_loading,
                       textCapitalization: TextCapitalization.words,
                       autofillHints: const [AutofillHints.name],
-                      validator: (v) => (v == null || v.trim().isEmpty)
+                      validator: trValidator((v) => (v == null || v.trim().isEmpty)
                           ? 'Please enter your name'
-                          : null,
+                          : null),
                     ),
                     if (_isFarmer)
                       AuthField(
@@ -144,9 +145,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         textCapitalization: TextCapitalization.words,
                         helper: 'Shown to buyers. You can set your public '
                             'pickup point on the map later in Profile.',
-                        validator: (v) => (v != null && v.trim().length > 120)
+                        validator: trValidator((v) => (v != null && v.trim().length > 120)
                             ? 'Keep it under 120 characters'
-                            : null,
+                            : null),
                       ),
                     AuthField(
                       label: 'Email',
@@ -155,7 +156,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       keyboardType: TextInputType.emailAddress,
                       enabled: !_loading,
                       autofillHints: const [AutofillHints.email],
-                      validator: (v) {
+                      validator: trValidator((v) {
                         if (v == null || v.trim().isEmpty) {
                           return 'Please enter your email';
                         }
@@ -163,7 +164,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           return 'That does not look like an email';
                         }
                         return null;
-                      },
+                      }),
                     ),
                     AuthField(
                       label: 'Phone number (optional)',
@@ -180,9 +181,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       obscureText: true,
                       enabled: !_loading,
                       autofillHints: const [AutofillHints.newPassword],
-                      validator: (v) => (v == null || v.length < 6)
+                      validator: trValidator((v) => (v == null || v.length < 6)
                           ? 'Password must be at least 6 characters'
-                          : null,
+                          : null),
                     ),
                     AuthField(
                       label: 'Confirm password',
@@ -190,9 +191,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       hint: 'Type it again',
                       obscureText: true,
                       enabled: !_loading,
-                      validator: (v) => (v != _passwordController.text)
+                      validator: trValidator((v) => (v != _passwordController.text)
                           ? 'Passwords do not match'
-                          : null,
+                          : null),
                     ),
                     const SizedBox(height: 12),
                     AuthPrimaryButton(

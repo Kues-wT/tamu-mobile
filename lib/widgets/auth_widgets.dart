@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 
@@ -30,11 +31,13 @@ class AuthBrandRow extends StatelessWidget {
                 letterSpacing: 1.3,
                 color: TamuColors.darkGreen)),
         const SizedBox(width: 8),
-        const Flexible(
+        const Expanded(
           child: Text('Tamparuli, Sabah',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12, color: TamuColors.textSecondary)),
         ),
+        // English / Bahasa Melayu, shown before signing in.
+        const LanguageSwitch(),
       ],
     );
   }
@@ -95,14 +98,14 @@ class AuthField extends StatelessWidget {
             keyboardType: keyboardType,
             obscureText: obscureText,
             enabled: enabled,
-            validator: validator,
+            validator: trValidator(validator),
             textCapitalization: textCapitalization,
             autofillHints: autofillHints,
             onFieldSubmitted: onSubmitted,
             style: const TextStyle(fontSize: 15, color: TamuColors.darkGreen),
             decoration: InputDecoration(
-              hintText: hint,
-              helperText: helper,
+              hintText: tr(hint),
+              helperText: tr(helper),
               helperMaxLines: 2,
               filled: true,
               fillColor: Colors.white,

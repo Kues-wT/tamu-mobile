@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../theme.dart';
@@ -118,7 +119,7 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
           height: 48,
           alignment: Alignment.topCenter,
           child: Tooltip(
-            message: farm.farmName ?? farm.farmerName,
+            message: tr(farm.farmName ?? farm.farmerName),
             child: Icon(
               Icons.location_on,
               size: 42,
@@ -141,7 +142,7 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
           height: 52,
           alignment: Alignment.topCenter,
           child: Tooltip(
-            message: widget.focusLabel ?? 'Selected public pickup point',
+            message: tr(widget.focusLabel ?? 'Selected public pickup point'),
             child: const Icon(
               Icons.location_on,
               size: 46,
@@ -176,7 +177,7 @@ class _NearbyFarmsScreenState extends State<NearbyFarmsScreen> {
         title: const Text('Nearby Farms'),
         actions: [
           IconButton(
-            tooltip: 'Refresh',
+            tooltip: tr('Refresh'),
             onPressed: _refresh,
             icon: const Icon(Icons.refresh),
           ),

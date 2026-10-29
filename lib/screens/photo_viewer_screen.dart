@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../api_service.dart';
 
 /// FR2: full-screen crop photo. Pinch or double-tap to zoom, drag to pan.
@@ -61,7 +62,7 @@ class _PhotoViewerScreenState extends State<PhotoViewerScreen> {
                   child: Image.network(
                     resolveServerUrl(widget.photoUrl)!,
                     fit: BoxFit.contain,
-                    semanticLabel: 'Photo of ${widget.title}',
+                    semanticLabel: tr('Photo of ${widget.title}'),
                     loadingBuilder: (context, child, progress) =>
                         progress == null
                             ? child

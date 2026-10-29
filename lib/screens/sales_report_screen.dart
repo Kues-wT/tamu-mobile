@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../theme.dart';
 import '../api_service.dart';
 
@@ -45,7 +46,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         title: const Text('Sales Report'),
         actions: [
           IconButton(
-            tooltip: 'Refresh',
+            tooltip: tr('Refresh'),
             onPressed: _refresh,
             icon: const Icon(Icons.refresh),
           ),

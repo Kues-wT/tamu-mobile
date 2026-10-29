@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../api_service.dart';
 import '../theme.dart';
 
@@ -54,7 +55,7 @@ class CropPhoto extends StatelessWidget {
               width: width,
               height: height,
               fit: fit,
-              semanticLabel: 'Crop photo',
+              semanticLabel: tr('Crop photo'),
               // Decode at display size, not full camera size, to save memory.
               cacheWidth: width == null
                   ? null

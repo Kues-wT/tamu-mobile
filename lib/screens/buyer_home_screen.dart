@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/crop_photo.dart';
@@ -342,8 +343,8 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                   child: TextField(
                     onChanged: (value) => setState(() => _search = value),
                     style: const TextStyle(fontSize: 14),
-                    decoration: const InputDecoration(
-                      hintText: 'Search Pak Choy, Tuhau...',
+                    decoration: InputDecoration(
+                      hintText: tr('Search Pak Choy, Tuhau...'),
                       border: InputBorder.none,
                       filled: false,
                       isDense: true,

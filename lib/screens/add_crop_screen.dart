@@ -1,7 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../theme.dart';
@@ -505,13 +506,13 @@ class _AddCropScreenState extends State<AddCropScreen> {
                     controller: _nameController,
                     style: const TextStyle(fontSize: 16),
                     textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. Pak Choy',
+                    decoration: InputDecoration(
+                      hintText: tr('e.g. Pak Choy'),
                       prefixIcon: Icon(Icons.eco_outlined),
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
+                    validator: trValidator((v) => (v == null || v.trim().isEmpty)
                         ? 'Please enter the crop name'
-                        : null,
+                        : null),
                   ),
                   const SizedBox(height: TamuSizes.gap),
 
@@ -585,12 +586,12 @@ class _AddCropScreenState extends State<AddCropScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. 3.50',
+                    decoration: InputDecoration(
+                      hintText: tr('e.g. 3.50'),
                       prefixText: 'RM ',
                       prefixIcon: Icon(Icons.payments_outlined),
                     ),
-                    validator: (v) {
+                    validator: trValidator((v) {
                       if (v == null || v.trim().isEmpty) {
                         return 'Please enter a price';
                       }
@@ -598,7 +599,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                       if (n == null) return 'Numbers only, e.g. 3.50';
                       if (n <= 0) return 'Price must be more than 0';
                       return null;
-                    },
+                    }),
                   ),
                   const SizedBox(height: TamuSizes.gap),
 
@@ -608,11 +609,11 @@ class _AddCropScreenState extends State<AddCropScreen> {
                     style: const TextStyle(fontSize: 16),
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      hintText: 'e.g. 20',
-                      suffixText: _unitPlural,
+                      hintText: tr('e.g. 20'),
+                      suffixText: tr(_unitPlural),
                       prefixIcon: Icon(Icons.inventory_2_outlined),
                     ),
-                    validator: (v) {
+                    validator: trValidator((v) {
                       if (v == null || v.trim().isEmpty) {
                         return 'Please enter the stock quantity';
                       }
@@ -620,7 +621,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                       if (n == null) return 'Whole numbers only, e.g. 20';
                       if (n < 0) return 'Stock cannot be negative';
                       return null;
-                    },
+                    }),
                   ),
                   const SizedBox(height: TamuSizes.gap),
                   _label('Crop Availability (optional)'),
@@ -764,7 +765,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                   _newPhotoBytes!,
                   height: 180,
                   fit: BoxFit.cover,
-                  semanticLabel: 'New crop photo',
+                  semanticLabel: tr('New crop photo'),
                 )
               : CropPhoto(
                   photoUrl: _existingPhotoUrl,
@@ -985,13 +986,13 @@ class _AddCropScreenState extends State<AddCropScreen> {
           ),
           if (draft != null)
             IconButton(
-              tooltip: 'Remove these photos',
+              tooltip: tr('Remove these photos'),
               onPressed: () => setState(() => _photoModelDraft = null),
               icon: const Icon(Icons.close, color: TamuColors.textSecondary),
             )
           else if (_hasPhotoModel)
             IconButton(
-              tooltip: 'Remove photo 3D view',
+              tooltip: tr('Remove photo 3D view'),
               onPressed: _removePhotoModel,
               icon: const Icon(Icons.delete_outline, color: TamuColors.danger),
             ),
@@ -1115,7 +1116,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                           ),
                         ),
                         IconButton(
-                          tooltip: 'Remove 3D model',
+                          tooltip: tr('Remove 3D model'),
                           onPressed: () => setState(() => _modelKey = null),
                           icon: const Icon(
                             Icons.close,

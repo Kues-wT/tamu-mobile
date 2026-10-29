@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 
@@ -173,12 +174,12 @@ class _CropModelPickerScreenState extends State<CropModelPickerScreen> {
                     onChanged: (_) => setState(() {}),
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
-                      hintText: 'Search, e.g. durian, nangka, ubi',
+                      hintText: tr('Search, e.g. durian, nangka, ubi'),
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: _search.text.isEmpty
                           ? null
                           : IconButton(
-                              tooltip: 'Clear search',
+                              tooltip: tr('Clear search'),
                               icon: const Icon(Icons.close),
                               onPressed: () => setState(_search.clear),
                             ),

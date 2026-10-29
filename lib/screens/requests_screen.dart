@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import 'orders_screen.dart' as orders;
@@ -34,6 +35,20 @@ class _RequestsScreenState extends State<RequestsScreen> {
   void _load() {
     _future = ApiService.fetchRequests(
       status: _filter == 'all' ? null : _filter,
+    ).then(_visibleToMe);
+  }
+
+  /// Farmers see the open board plus the requests they accepted
+  /// themselves, not ones other farmers accepted.
+  List<CropRequest> _visibleToMe(List<CropRequest> all) {
+    if (!_isFarmer) return all;
+    final me = ApiService.currentUser?.id;
+    return all.where((r) => r.isOpen || r.acceptedById == me).toList();
+  }
+
+  void _openOrders() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const orders.OrdersScreen()),
     );
   }
 
@@ -56,17 +71,26 @@ class _RequestsScreenState extends State<RequestsScreen> {
   /// The farmer picks one of their own listings, and accepting the
   /// request immediately creates a pending order for the buyer.
   Future<void> _accept(CropRequest r) async {
-    List<Product> mine = [];
+    List<Product> mine;
     try {
       mine = await ApiService.fetchMyProducts();
-    } catch (_) {
-      // If listings cannot be loaded we still allow a plain accept.
+    } catch (e) {
+      if (mounted) {
+        _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
+      }
+      return;
     }
     if (!mounted) return;
 
-    // Suggest listings that can actually cover the requested amount.
+    // Only listings that can cover the amount and are on sale today
+    // (the server refuses the others).
+    final today = DateUtils.dateOnly(DateTime.now());
     final usable = mine
-        .where((p) => p.unit == 'kg' && p.stockQuantity >= r.quantityKg)
+        .where((p) =>
+            p.unit == 'kg' &&
+            p.stockQuantity >= r.quantityKg &&
+            (p.availableFrom == null || !p.availableFrom!.isAfter(today)) &&
+            (p.availableUntil == null || !p.availableUntil!.isBefore(today)))
         .toList();
 
     final choice = await showDialog<_AcceptChoice>(
@@ -84,7 +108,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Link one of your listings to turn this into a real order:',
+                'Choose the listing to supply it from. This creates a '
+                'pending order for the buyer:',
                 style: TextStyle(
                     fontSize: 14, color: TamuColors.textSecondary),
               ),
@@ -97,10 +122,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    mine.isEmpty
-                        ? 'You have no listings yet.'
-                        : 'Crop requests are measured in kg. Link a kg listing '
-                            'with enough stock, or accept without linking a listing.',
+                    'To accept, you need a listing on sale today, sold by kg, with at least '
+                    '${r.quantityKg} kg in stock. Add or update one in My '
+                    'listings, then come back.',
                     style: const TextStyle(fontSize: 13),
                   ),
                 )
@@ -142,10 +166,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel', style: TextStyle(fontSize: 16)),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(_AcceptChoice()),
-            child: const Text('Accept only', style: TextStyle(fontSize: 16)),
-          ),
         ],
       ),
     );
@@ -161,15 +181,25 @@ class _RequestsScreenState extends State<RequestsScreen> {
       if (!mounted) return;
       setState(() {
         _busyId = null;
+        // Show the request where it now lives, with its new order.
+        _filter = 'accepted';
       });
       await _refresh();
       if (!mounted) return;
-      _snack(
-        updated.convertedOrderId != null
-            ? 'Accepted. Order #${updated.convertedOrderId} created - check '
-                'Incoming Orders.'
-            : 'You accepted the request for ${r.cropName}',
-        TamuColors.primary,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: TamuColors.primary,
+          content: Text(
+            'Order #${updated.convertedOrderId} created. Confirm it in '
+            'Orders (Pending).',
+            style: const TextStyle(fontSize: 16, color: Colors.white),
+          ),
+          action: SnackBarAction(
+            label: tr('View order'),
+            textColor: Colors.white,
+            onPressed: _openOrders,
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -223,31 +253,31 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   controller: cropCtrl,
                   style: const TextStyle(fontSize: 16),
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Crop Name',
-                    hintText: 'e.g. Sayur Sawi',
+                  decoration: InputDecoration(
+                    labelText: tr('Crop Name'),
+                    hintText: tr('e.g. Sayur Sawi'),
                     prefixIcon: Icon(Icons.eco_outlined),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
+                  validator: trValidator((v) => (v == null || v.trim().isEmpty)
                       ? 'Please enter the crop name'
-                      : null,
+                      : null),
                 ),
                 const SizedBox(height: TamuSizes.gap),
                 TextFormField(
                   controller: qtyCtrl,
                   keyboardType: TextInputType.number,
                   style: const TextStyle(fontSize: 16),
-                  decoration: const InputDecoration(
-                    labelText: 'Quantity needed (kg)',
-                    hintText: 'e.g. 30',
+                  decoration: InputDecoration(
+                    labelText: tr('Quantity needed (kg)'),
+                    hintText: tr('e.g. 30'),
                     prefixIcon: Icon(Icons.scale_outlined),
                   ),
-                  validator: (v) {
+                  validator: trValidator((v) {
                     final n = int.tryParse((v ?? '').trim());
                     if (n == null) return 'Whole numbers only';
                     if (n <= 0) return 'Must be more than 0';
                     return null;
-                  },
+                  }),
                 ),
                 const SizedBox(height: TamuSizes.gap),
                 TextFormField(
@@ -255,27 +285,27 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 16),
-                  decoration: const InputDecoration(
-                    labelText: 'Max price per kg (optional)',
+                  decoration: InputDecoration(
+                    labelText: tr('Max price per kg (optional)'),
                     prefixText: 'RM ',
                     prefixIcon: Icon(Icons.payments_outlined),
                   ),
-                  validator: (v) {
+                  validator: trValidator((v) {
                     if (v == null || v.trim().isEmpty) return null;
                     final n = double.tryParse(v.trim());
                     if (n == null) return 'Numbers only';
                     if (n <= 0) return 'Must be more than 0';
                     return null;
-                  },
+                  }),
                 ),
                 const SizedBox(height: TamuSizes.gap),
                 TextFormField(
                   controller: noteCtrl,
                   maxLines: 2,
                   style: const TextStyle(fontSize: 16),
-                  decoration: const InputDecoration(
-                    labelText: 'Note (optional)',
-                    hintText: 'e.g. Needed by Friday for my restaurant',
+                  decoration: InputDecoration(
+                    labelText: tr('Note (optional)'),
+                    hintText: tr('e.g. Needed by Friday for my restaurant'),
                   ),
                 ),
               ],
@@ -336,7 +366,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
               title: const Text('Buyer Requests'),
               actions: [
                 IconButton(
-                  tooltip: 'Refresh',
+                  tooltip: tr('Refresh'),
                   onPressed: _refresh,
                   icon: const Icon(Icons.refresh),
                 ),
@@ -417,7 +447,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             ),
           ),
           IconButton(
-            tooltip: 'Notifications',
+            tooltip: tr('Notifications'),
             onPressed: _openNotifications,
             icon: const Icon(Icons.notifications_none,
                 color: TamuColors.textPrimary),
@@ -635,9 +665,17 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     const Icon(Icons.receipt_long_outlined,
                         size: 16, color: TamuColors.info),
                     const SizedBox(width: 6),
-                    Text('Became order #${r.convertedOrderId}',
-                        style: const TextStyle(
-                            fontSize: 13, color: TamuColors.info)),
+                    Expanded(
+                      child: Text('Became order #${r.convertedOrderId}',
+                          style: const TextStyle(
+                              fontSize: 13, color: TamuColors.info)),
+                    ),
+                    // Only the two people in the order can open it.
+                    if (mine || r.acceptedById == ApiService.currentUser?.id)
+                      TextButton(
+                        onPressed: _openOrders,
+                        child: const Text('View order'),
+                      ),
                   ],
                 ),
               ),
@@ -762,6 +800,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
 /// What the farmer chose in the accept dialog.
 /// productId == null means "accept without creating an order".
 class _AcceptChoice {
-  final int? productId;
-  const _AcceptChoice({this.productId});
+  final int productId;
+  const _AcceptChoice({required this.productId});
 }

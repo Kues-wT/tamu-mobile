@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/farmer_bottom_nav.dart';
@@ -70,21 +71,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: nameCtrl,
                   style: const TextStyle(fontSize: 16),
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Full Name',
+                  decoration: InputDecoration(
+                    labelText: tr('Full Name'),
                     prefixIcon: Icon(Icons.person_outline),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
+                  validator: trValidator((v) => (v == null || v.trim().isEmpty)
                       ? 'Please enter your name'
-                      : null,
+                      : null),
                 ),
                 const SizedBox(height: TamuSizes.gap),
                 TextFormField(
                   controller: phoneCtrl,
                   keyboardType: TextInputType.phone,
                   style: const TextStyle(fontSize: 16),
-                  decoration: const InputDecoration(
-                    labelText: 'Phone (optional)',
+                  decoration: InputDecoration(
+                    labelText: tr('Phone (optional)'),
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                 ),
@@ -96,9 +97,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     maxLines: 2,
                     style: const TextStyle(fontSize: 16),
                     textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Delivery address / village',
-                      hintText: 'e.g. Pekan Tamparuli, Sabah',
+                    decoration: InputDecoration(
+                      labelText: tr('Delivery address / village'),
+                      hintText: tr('e.g. Pekan Tamparuli, Sabah'),
                       prefixIcon: Icon(Icons.location_on_outlined),
                     ),
                   ),
@@ -125,17 +126,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   const TextInputType.numberWithOptions(
                                       decimal: true, signed: true),
                               style: const TextStyle(fontSize: 14),
-                              decoration: const InputDecoration(
-                                labelText: 'Latitude',
-                                hintText: '6.1447',
+                              decoration: InputDecoration(
+                                labelText: tr('Latitude'),
+                                hintText: tr('6.1447'),
                               ),
-                              validator: (v) => validateCoordinate(
+                              validator: trValidator((v) => validateCoordinate(
                                 v,
                                 'latitude',
                                 longitudeCtrl.text,
                                 -90,
                                 90,
-                              ),
+                              )),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -146,17 +147,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   const TextInputType.numberWithOptions(
                                       decimal: true, signed: true),
                               style: const TextStyle(fontSize: 14),
-                              decoration: const InputDecoration(
-                                labelText: 'Longitude',
-                                hintText: '116.2757',
+                              decoration: InputDecoration(
+                                labelText: tr('Longitude'),
+                                hintText: tr('116.2757'),
                               ),
-                              validator: (v) => validateCoordinate(
+                              validator: trValidator((v) => validateCoordinate(
                                 v,
                                 'longitude',
                                 latitudeCtrl.text,
                                 -180,
                                 180,
-                              ),
+                              )),
                             ),
                           ),
                         ],
@@ -244,39 +245,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: currentCtrl,
                   obscureText: true,
                   style: const TextStyle(fontSize: 16),
-                  decoration: const InputDecoration(
-                    labelText: 'Current Password',
+                  decoration: InputDecoration(
+                    labelText: tr('Current Password'),
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
-                  validator: (v) => (v == null || v.isEmpty)
+                  validator: trValidator((v) => (v == null || v.isEmpty)
                       ? 'Enter your current password'
-                      : null,
+                      : null),
                 ),
                 const SizedBox(height: TamuSizes.gap),
                 TextFormField(
                   controller: newCtrl,
                   obscureText: true,
                   style: const TextStyle(fontSize: 16),
-                  decoration: const InputDecoration(
-                    labelText: 'New Password',
-                    helperText: 'At least 6 characters',
+                  decoration: InputDecoration(
+                    labelText: tr('New Password'),
+                    helperText: tr('At least 6 characters'),
                     prefixIcon: Icon(Icons.lock_reset),
                   ),
-                  validator: (v) => (v == null || v.length < 6)
+                  validator: trValidator((v) => (v == null || v.length < 6)
                       ? 'At least 6 characters'
-                      : null,
+                      : null),
                 ),
                 const SizedBox(height: TamuSizes.gap),
                 TextFormField(
                   controller: confirmCtrl,
                   obscureText: true,
                   style: const TextStyle(fontSize: 16),
-                  decoration: const InputDecoration(
-                    labelText: 'Confirm New Password',
+                  decoration: InputDecoration(
+                    labelText: tr('Confirm New Password'),
                     prefixIcon: Icon(Icons.lock_reset),
                   ),
-                  validator: (v) =>
-                      (v != newCtrl.text) ? 'Passwords do not match' : null,
+                  validator: trValidator((v) =>
+                      (v != newCtrl.text) ? 'Passwords do not match' : null),
                 ),
               ],
             ),
@@ -345,9 +346,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     controller: farmCtrl,
                     style: const TextStyle(fontSize: 16),
                     textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Farm Name',
-                      hintText: 'e.g. Ladang Siti',
+                    decoration: InputDecoration(
+                      labelText: tr('Farm Name'),
+                      hintText: tr('e.g. Ladang Siti'),
                       prefixIcon: Icon(Icons.agriculture_outlined),
                     ),
                   ),
@@ -358,10 +359,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: const TextStyle(fontSize: 16),
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
-                    labelText: 'Address / Village',
-                    hintText: user.isFarmer
+                    labelText: tr('Address / Village'),
+                    hintText: tr(user.isFarmer
                       ? 'e.g. Tamparuli Market public stall'
-                      : 'e.g. Kg. Sayap, Tamparuli',
+                      : 'e.g. Kg. Sayap, Tamparuli'),
                     prefixIcon: Icon(Icons.home_outlined),
                   ),
                 ),
@@ -374,17 +375,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: const TextStyle(fontSize: 16),
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true, signed: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Latitude',
-                          hintText: '6.1447',
+                        decoration: InputDecoration(
+                          labelText: tr('Latitude'),
+                          hintText: tr('6.1447'),
                         ),
-                        validator: (v) {
+                        validator: trValidator((v) {
                           if (v == null || v.trim().isEmpty) return null;
                           final n = double.tryParse(v.trim());
                           if (n == null) return 'Numbers only';
                           if (n < -90 || n > 90) return '-90 to 90';
                           return null;
-                        },
+                        }),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -394,17 +395,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: const TextStyle(fontSize: 16),
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true, signed: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Longitude',
-                          hintText: '116.2757',
+                        decoration: InputDecoration(
+                          labelText: tr('Longitude'),
+                          hintText: tr('116.2757'),
                         ),
-                        validator: (v) {
+                        validator: trValidator((v) {
                           if (v == null || v.trim().isEmpty) return null;
                           final n = double.tryParse(v.trim());
                           if (n == null) return 'Numbers only';
                           if (n < -180 || n > 180) return '-180 to 180';
                           return null;
-                        },
+                        }),
                       ),
                     ),
                   ],
@@ -580,8 +581,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     controller: passwordCtrl,
                     obscureText: true,
                     enabled: !busy,
-                    decoration: const InputDecoration(
-                      labelText: 'Current password',
+                    decoration: InputDecoration(
+                      labelText: tr('Current password'),
                       border: OutlineInputBorder(),
                     ),
                     onSubmitted: (_) => confirm(),
@@ -805,6 +806,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: _changePassword,
           ),
           const Divider(height: 1, indent: 46),
+          _languageRow(),
+          const Divider(height: 1, indent: 46),
           _profileActionRow(
             icon: Icons.notifications_none,
             title: 'Notifications',
@@ -819,6 +822,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: _showProjectNotes,
           ),
         ],
+      ),
+    );
+  }
+
+  /// English / Bahasa Melayu switch; the choice is remembered on the phone.
+  Widget _languageRow() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppLanguage.malay,
+      builder: (context, malay, _) => InkWell(
+        onTap: () => AppLanguage.setMalay(!malay),
+        borderRadius: BorderRadius.circular(15),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 28,
+                child:
+                    Icon(Icons.translate, color: TamuColors.primary, size: 20),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Bahasa Melayu',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
+                    SizedBox(height: 2),
+                    Text('Show the app in Malay',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12, color: TamuColors.textSecondary)),
+                  ],
+                ),
+              ),
+              Switch(value: malay, onChanged: AppLanguage.setMalay),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -859,6 +903,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: 'Keep your account secure',
             onTap: _changePassword,
           ),
+          const Divider(height: 1, indent: 46),
+          _languageRow(),
           const Divider(height: 1, indent: 46),
           _profileActionRow(
             icon: Icons.notifications_none,

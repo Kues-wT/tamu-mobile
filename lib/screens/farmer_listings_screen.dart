@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import '../api_service.dart';
 import '../widgets/crop_photo.dart';
 import '../theme.dart';
@@ -194,7 +195,7 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
             ),
           ),
           IconButton.filled(
-            tooltip: 'Add crop',
+            tooltip: tr('Add crop'),
             onPressed: () => _openCrop(),
             style: IconButton.styleFrom(
               backgroundColor: TamuColors.primary,
@@ -312,7 +313,7 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
             children: [
               _statusBadge(ended ? 'Ended' : 'Active'),
               PopupMenuButton<String>(
-                tooltip: 'Listing actions',
+                tooltip: tr('Listing actions'),
                 onSelected: (value) {
                   if (value == 'edit') _openCrop(existing: product);
                   if (value == 'delete') _delete(product);

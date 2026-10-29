@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 
 import '../theme.dart';
@@ -44,7 +45,7 @@ class _ArViewScreenState extends State<ArViewScreen> {
         title: Text('${p.name} in 3D / AR'),
         actions: [
           IconButton(
-            tooltip: _autoRotate ? 'Stop rotating' : 'Auto-rotate',
+            tooltip: tr(_autoRotate ? 'Stop rotating' : 'Auto-rotate'),
             onPressed: () => setState(() {
               _autoRotate = !_autoRotate;
             }),
@@ -80,9 +81,11 @@ class _ArViewScreenState extends State<ArViewScreen> {
       ),
       clipBehavior: Clip.antiAlias,
       child: ModelViewer(
-        key: ValueKey('${p.modelUrl}-$_autoRotate-$_floorAr'),
+        // The language is in the key so the AR button text redraws too.
+        key: ValueKey(
+            '${p.modelUrl}-$_autoRotate-$_floorAr-${AppLanguage.malay.value}'),
         src: p.modelUrl!,
-        alt: '3D model of ${p.name}',
+        alt: tr('3D model of ${p.name}'),
         // Floor AR (Scene Viewer / Quick Look) only where ARCore exists;
         // other phones get the 3D view only.
         ar: _floorAr == true,
@@ -106,7 +109,7 @@ class _ArViewScreenState extends State<ArViewScreen> {
   transform:translateX(-50%);padding:14px 22px;border:0;border-radius:28px;
   background:#2E7D32;color:#fff;font:600 16px sans-serif;
   box-shadow:0 4px 12px rgba(0,0,0,.25);">
-  &#128247; View in my room
+  &#128247; ${tr('View in my room')}
 </button>''',
       ),
     );

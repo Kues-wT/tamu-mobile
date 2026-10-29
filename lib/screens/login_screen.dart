@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../api_service.dart';
@@ -122,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     autofillHints: const [AutofillHints.password],
                     onSubmitted: (_) => _handleLogin(),
                     suffixIcon: IconButton(
-                      tooltip: _showPassword ? 'Hide password' : 'Show password',
+                      tooltip: tr(_showPassword ? 'Hide password' : 'Show password'),
                       icon: Icon(_showPassword
                           ? Icons.visibility_off
                           : Icons.visibility),

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import '../i18n.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../theme.dart';
@@ -316,12 +317,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 ),
               ),
               IconButton(
-                tooltip: 'Refresh orders',
+                tooltip: tr('Refresh orders'),
                 onPressed: _refresh,
                 icon: const Icon(Icons.refresh, color: TamuColors.textPrimary),
               ),
               IconButton(
-                tooltip: 'Notifications',
+                tooltip: tr('Notifications'),
                 onPressed: _openNotifications,
                 icon: const Icon(
                   Icons.notifications_none,
@@ -364,12 +365,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
             ),
           ),
           IconButton(
-            tooltip: 'Refresh orders',
+            tooltip: tr('Refresh orders'),
             onPressed: _refresh,
             icon: const Icon(Icons.refresh, color: TamuColors.textPrimary),
           ),
           IconButton(
-            tooltip: 'Notifications',
+            tooltip: tr('Notifications'),
             onPressed: _openNotifications,
             icon: const Icon(
               Icons.notifications_none,
@@ -1076,7 +1077,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
     ];
     final hh = d.hour.toString().padLeft(2, '0');
     final mm = d.minute.toString().padLeft(2, '0');
-    return '${d.day} ${months[d.month - 1]} ${d.year}, $hh:$mm';
+    return '${d.day} ${tr(months[d.month - 1])} ${d.year}, $hh:$mm';
   }
 
   Widget _buildEmpty() {
