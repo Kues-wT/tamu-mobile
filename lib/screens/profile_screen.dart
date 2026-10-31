@@ -685,13 +685,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             subtitle: 'Orders, requests and updates',
             onTap: _openNotifications,
           ),
-          const Divider(height: 1, indent: 46),
-          _profileActionRow(
-            icon: Icons.chat_bubble_outline,
-            title: 'Project notes',
-            subtitle: 'Flow map and questions to confirm',
-            onTap: _showProjectNotes,
-          ),
         ],
       ),
     );
@@ -782,13 +775,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: 'Notifications',
             subtitle: 'Orders, requests and updates',
             onTap: _openNotifications,
-          ),
-          const Divider(height: 1, indent: 46),
-          _profileActionRow(
-            icon: Icons.chat_bubble_outline,
-            title: 'Project notes',
-            subtitle: 'Flow map and questions to confirm',
-            onTap: _showProjectNotes,
           ),
         ],
       ),
@@ -946,25 +932,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _openNotifications() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const notifications.NotificationsScreen()),
-    );
-  }
-
-  Future<void> _showProjectNotes() async {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('About TAMU'),
-        content: const Text(
-          'TAMU connects smallholder farmers and buyers around Tamparuli. '
-          'This demonstration uses local sample listings and a local development database.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
     );
   }
 
