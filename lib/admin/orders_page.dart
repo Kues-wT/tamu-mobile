@@ -135,7 +135,7 @@ class _OrdersPageState extends State<OrdersPage> {
                     CellText(
                       o.fulfilmentMethod == 'delivery' ? 'Delivery' : 'Pickup',
                       sub: o.paymentMethod == 'mock_online'
-                          ? 'Online (demo)'
+                          ? 'Online payment'
                           : 'Pay on handover',
                     ),
                     StatusPill.forStatus(o.status),

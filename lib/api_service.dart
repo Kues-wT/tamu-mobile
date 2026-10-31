@@ -274,7 +274,7 @@ class Order {
       : (pickupPoint ?? "Farmer's public pickup point");
 
   String get paymentLabel => paymentMethod == 'mock_online'
-      ? 'Mock online payment (simulated)'
+      ? 'Online payment'
       : (isDelivery ? 'Pay on delivery' : 'Pay on pickup');
 
   factory Order.fromJson(Map<String, dynamic> json) => Order(

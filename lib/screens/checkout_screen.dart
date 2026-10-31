@@ -214,7 +214,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 _choice(
                   selected: _payment == 'mock_online',
                   icon: Icons.lock_outline,
-                  title: 'Mock online payment',
+                  title: 'Online payment',
                   detail: 'Simulation · no banking details required',
                   onTap: () => setState(() => _payment = 'mock_online'),
                 ),
