@@ -229,7 +229,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   selected: _payment == 'mock_online',
                   icon: Icons.lock_outline,
                   title: 'Online payment',
-                  detail: 'Simulation · no banking details required',
+                  detail: 'Mock payment',
                   onTap: () => setState(() => _payment = 'mock_online'),
                 ),
                 const SizedBox(height: 14),

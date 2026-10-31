@@ -207,7 +207,7 @@ class _OnlinePaySheetState extends State<OnlinePaySheet> {
                     fontWeight: FontWeight.w700,
                     color: TamuColors.darkGreen)),
             const SizedBox(height: 6),
-            const Text('Demo payment · no card or bank details needed',
+            const Text('Mock payment',
                 style:
                     TextStyle(fontSize: 11, color: TamuColors.textSecondary)),
             const SizedBox(height: 18),
