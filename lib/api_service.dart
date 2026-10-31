@@ -234,6 +234,8 @@ class Order {
   final double? deliveryLongitude;
   final String? pickupPoint; // farmer's public point when ordered
   final String paymentMethod; // pay_on_handover | mock_online (demo only)
+  final String? paymentRef; // demo online-payment receipt number
+  final DateTime? paidAt;
   final String? cancelReason; // why it was cancelled, if it was
   final String? cancelledBy; // buyer | farmer | system | admin
 
@@ -256,11 +258,16 @@ class Order {
     this.deliveryLongitude,
     this.pickupPoint,
     this.paymentMethod = 'pay_on_handover',
+    this.paymentRef,
+    this.paidAt,
     this.cancelReason,
     this.cancelledBy,
   });
 
   bool get isDelivery => fulfilmentMethod == 'delivery';
+
+  /// Paid online (demo), so a receipt can be shown.
+  bool get hasReceipt => paymentRef != null && paidAt != null;
 
   bool get hasDeliveryPin =>
       deliveryLatitude != null && deliveryLongitude != null;
@@ -274,7 +281,7 @@ class Order {
       : (pickupPoint ?? "Farmer's public pickup point");
 
   String get paymentLabel => paymentMethod == 'mock_online'
-      ? 'Online payment'
+      ? (hasReceipt ? 'Online payment · Paid' : 'Online payment')
       : (isDelivery ? 'Pay on delivery' : 'Pay on pickup');
 
   factory Order.fromJson(Map<String, dynamic> json) => Order(
@@ -296,6 +303,10 @@ class Order {
         deliveryLongitude: (json['delivery_longitude'] as num?)?.toDouble(),
         pickupPoint: json['pickup_point'] as String?,
         paymentMethod: json['payment_method'] as String? ?? 'pay_on_handover',
+        paymentRef: json['payment_ref'] as String?,
+        paidAt: json['paid_at'] == null
+            ? null
+            : parseServerTime(json['paid_at'] as String),
         cancelReason: json['cancel_reason'] as String?,
         cancelledBy: json['cancelled_by'] as String?,
       );

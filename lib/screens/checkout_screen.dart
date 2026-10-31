@@ -7,6 +7,7 @@ import '../api_service.dart';
 import '../widgets/crop_photo.dart';
 import 'location_picker_screen.dart';
 import 'order_placed_screen.dart';
+import 'receipt_screen.dart';
 
 /// FR5 Review order / checkout (Figma "Checkout").
 /// The buyer picks pickup or delivery and a DEMO payment option.
@@ -77,6 +78,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'address (at least 5 characters).',
       );
       return;
+    }
+
+    if (_payment == 'mock_online') {
+      final paid = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (_) =>
+            OnlinePaySheet(amount: _total, farmerName: p.farmerName),
+      );
+      if (paid != true || !mounted) return;
     }
 
     setState(() => _placing = true);
@@ -242,7 +256,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Place demo order'),
+                      : Text(_payment == 'mock_online'
+                          ? 'Continue to payment'
+                          : 'Place order'),
                 ),
                 const SizedBox(height: 8),
                 const Text(

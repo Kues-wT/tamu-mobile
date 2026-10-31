@@ -12,6 +12,7 @@ import 'requests_screen.dart' as requests;
 import 'notifications_screen.dart' as notifications;
 import 'login_screen.dart' as login;
 import 'location_picker_screen.dart' as location_picker;
+import 'receipt_screen.dart';
 
 /// Orders list.
 /// Farmers see orders RECEIVED for their crops, with Accept / Reject.
@@ -447,6 +448,24 @@ class _OrdersScreenState extends State<OrdersScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(order.paymentLabel, style: muted),
+                      if (order.hasReceipt)
+                        TextButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => ReceiptScreen(order: order)),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 40),
+                            textStyle: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          icon: const Icon(Icons.receipt_long_outlined,
+                              size: 18),
+                          label: const Text('View receipt'),
+                        ),
                     ],
                   ),
                 ),

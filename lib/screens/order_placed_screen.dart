@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import 'orders_screen.dart' as orders;
+import 'receipt_screen.dart';
 
 /// FR5 Order placed confirmation (Figma "Confirmation").
 /// Pushed by CheckoutScreen with only the marketplace underneath it.
@@ -79,6 +80,23 @@ class OrderPlacedScreen extends StatelessWidget {
                   child: const Text('Track this order'),
                 ),
                 const SizedBox(height: 10),
+                if (order.hasReceipt) ...[
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => ReceiptScreen(order: order)),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      side: const BorderSide(color: TamuColors.primary),
+                      shape: buttonShape,
+                      textStyle: buttonText,
+                    ),
+                    icon: const Icon(Icons.receipt_long_outlined),
+                    label: const Text('View receipt'),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: OutlinedButton.styleFrom(
