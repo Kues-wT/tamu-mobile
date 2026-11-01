@@ -72,19 +72,25 @@ class _RequestsScreenState extends State<RequestsScreen> {
     );
   }
 
-  /// FR6 bidding: the farmer offers to supply the request from one of
-  /// their kg listings, at the listing's price or their own.
-  Future<void> _sendOffer(CropRequest r) async {
-    List<Product> mine;
-    try {
-      mine = await ApiService.fetchMyProducts();
-    } catch (e) {
-      if (mounted) {
-        _snack(e.toString().replaceFirst('Exception: ', ''), TamuColors.danger);
+  /// FR6 bidding: the farmer either supplies the request from one of
+  /// their listings ([fromListing]) or sends their own offer with the kg
+  /// and price they can do.
+  Future<void> _sendOffer(CropRequest r, {required bool fromListing}) async {
+    List<Product> mine = const [];
+    if (fromListing) {
+      try {
+        mine = await ApiService.fetchMyProducts();
+      } catch (e) {
+        if (mounted) {
+          _snack(
+            e.toString().replaceFirst('Exception: ', ''),
+            TamuColors.danger,
+          );
+        }
+        return;
       }
-      return;
+      if (!mounted) return;
     }
-    if (!mounted) return;
 
     // Only listings of the requested crop with stock that are on sale
     // today (the server refuses the others).
@@ -99,6 +105,14 @@ class _RequestsScreenState extends State<RequestsScreen> {
               (p.availableUntil == null || !p.availableUntil!.isBefore(today)),
         )
         .toList();
+    if (fromListing && usable.isEmpty) {
+      _snack(
+        'You have no ${r.cropName} listing on sale today. '
+        'Use Send offer instead.',
+        TamuColors.danger,
+      );
+      return;
+    }
 
     final draft = await showDialog<_OfferDraft>(
       context: context,
@@ -768,12 +782,19 @@ class _RequestsScreenState extends State<RequestsScreen> {
               const SizedBox(height: 12),
               if (r.myOffer != null && r.myOffer!.isOpen)
                 _buildMyOffer(r, r.myOffer!)
-              else
+              else ...[
                 ElevatedButton.icon(
-                  onPressed: () => _sendOffer(r),
+                  onPressed: () => _sendOffer(r, fromListing: false),
                   icon: const Icon(Icons.handshake_outlined),
-                  label: const Text('Send an offer'),
+                  label: const Text('Send offer'),
                 ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _sendOffer(r, fromListing: true),
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: const Text('Supply from listing'),
+                ),
+              ],
             ],
             if (mine && r.isOpen) ...[
               const SizedBox(height: 12),
@@ -971,9 +992,9 @@ bool sameCrop(String a, String b) {
   return x.length <= y.length ? y.containsAll(x) : x.containsAll(y);
 }
 
-/// FR6 bidding: the farmer picks a listing of the requested crop, or says
-/// they have it but never listed it, sets a price per kg (the listing's
-/// price by default) and can add a note for the buyer.
+/// FR6 bidding. With [listings] the farmer picks one of their listings of
+/// the requested crop (its price by default); without, it is their own
+/// offer. Either way they set the kg, the price per kg and an optional note.
 class _OfferDialog extends StatefulWidget {
   final CropRequest request;
   final List<Product> listings;
@@ -1003,9 +1024,6 @@ class _OfferDialogState extends State<_OfferDialog> {
     final stock = _listing?.stockQuantity;
     return stock != null && stock < need ? stock : need;
   }
-
-  // No listing chosen: the farmer has the crop but never listed it.
-  bool get _fromHome => _listing == null;
 
   @override
   void dispose() {
@@ -1060,8 +1078,13 @@ class _OfferDialogState extends State<_OfferDialog> {
     final r = widget.request;
     final price = double.tryParse(_price.text.trim());
     final kg = int.tryParse(_kg.text.trim());
+    final fromListing = widget.listings.isNotEmpty;
     return AlertDialog(
-      title: Text('Offer to supply ${r.cropName}'),
+      title: Text(
+        fromListing
+            ? 'Supply ${r.cropName} from a listing'
+            : 'Offer to supply ${r.cropName}',
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1080,11 +1103,13 @@ class _OfferDialogState extends State<_OfferDialog> {
                 ),
               ),
             const SizedBox(height: 12),
-            const Text(
-              'Supply it from:',
-              style: TextStyle(fontSize: 14, color: TamuColors.textSecondary),
-            ),
-            const SizedBox(height: 6),
+            if (fromListing) ...[
+              const Text(
+                'Choose a listing:',
+                style: TextStyle(fontSize: 14, color: TamuColors.textSecondary),
+              ),
+              const SizedBox(height: 6),
+            ],
             for (final p in widget.listings)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
@@ -1142,7 +1167,6 @@ class _OfferDialogState extends State<_OfferDialog> {
                   ),
                 ),
               ),
-            _homeOption(r),
             const SizedBox(height: 8),
             TextField(
               controller: _kg,
@@ -1201,50 +1225,6 @@ class _OfferDialogState extends State<_OfferDialog> {
         ),
         ElevatedButton(onPressed: _submit, child: const Text('Send offer')),
       ],
-    );
-  }
-
-  Widget _homeOption(CropRequest r) {
-    final on = _fromHome;
-    return OutlinedButton(
-      onPressed: () => setState(() => _choose(null)),
-      style: OutlinedButton.styleFrom(
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        backgroundColor: on ? TamuColors.primary.withValues(alpha: 0.08) : null,
-        side: BorderSide(
-          color: on ? TamuColors.primary : TamuColors.border,
-          width: on ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            on ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-            size: 18,
-            color: TamuColors.primary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Not listed',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  'I have ${r.cropName}, but not in My listings',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: TamuColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1371,16 +1351,15 @@ class _OffersSheet extends StatelessWidget {
                               color: TamuColors.amber,
                             ),
                           ),
-                        Text(
-                          o.fromHome
-                              ? "Not listed (farmer's own stock)"
-                              : 'From listing: '
-                                    '${o.productName ?? request.cropName}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: TamuColors.textSecondary,
+                        if (!o.fromHome)
+                          Text(
+                            'From listing: '
+                            '${o.productName ?? request.cropName}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: TamuColors.textSecondary,
+                            ),
                           ),
-                        ),
                         if (o.note != null) ...[
                           const SizedBox(height: 6),
                           Text(
