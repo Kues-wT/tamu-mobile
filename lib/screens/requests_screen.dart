@@ -40,12 +40,14 @@ class _RequestsScreenState extends State<RequestsScreen> {
     ).then(_visibleToMe);
   }
 
-  /// Farmers see the open board plus the requests they accepted
-  /// themselves, not ones other farmers accepted.
+  /// Farmers see the open board, the requests they won and the ones they
+  /// made an offer on (shown as fulfilled once the buyer chose).
   List<CropRequest> _visibleToMe(List<CropRequest> all) {
     if (!_isFarmer) return all;
     final me = ApiService.currentUser?.id;
-    return all.where((r) => r.isOpen || r.acceptedById == me).toList();
+    return all
+        .where((r) => r.isOpen || r.acceptedById == me || r.myOffer != null)
+        .toList();
   }
 
   void _openOrders() {
@@ -84,15 +86,15 @@ class _RequestsScreenState extends State<RequestsScreen> {
     }
     if (!mounted) return;
 
-    // Only listings of the requested crop that can cover the amount and
-    // are on sale today (the server refuses the others).
+    // Only listings of the requested crop with stock that are on sale
+    // today (the server refuses the others).
     final today = DateUtils.dateOnly(DateTime.now());
     final usable = mine
         .where(
           (p) =>
               sameCrop(p.name, r.cropName) &&
               p.unit == 'kg' &&
-              p.stockQuantity >= r.quantityKg &&
+              p.stockQuantity > 0 &&
               (p.availableFrom == null || !p.availableFrom!.isAfter(today)) &&
               (p.availableUntil == null || !p.availableUntil!.isBefore(today)),
         )
@@ -109,6 +111,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
       await ApiService.createOffer(
         r.id,
         productId: draft.productId,
+        quantityKg: draft.quantityKg,
         pricePerKg: draft.pricePerKg,
         note: draft.note,
       );
@@ -156,9 +159,17 @@ class _RequestsScreenState extends State<RequestsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Accept this offer?'),
         content: Text(
-          '${chosen.farmerName} supplies ${r.quantityKg} kg of ${r.cropName} '
-          'for RM ${chosen.totalPrice.toStringAsFixed(2)}. The other offers '
-          'will be declined.',
+          chosen.quantityKg < r.quantityKg
+              ? '${chosen.farmerName} supplies ${chosen.quantityKg} kg of '
+                    '${r.cropName} for RM '
+                    '${chosen.totalPrice.toStringAsFixed(2)}. The other '
+                    'offers will be declined and the request closes. Post a '
+                    'new request for the other '
+                    '${r.quantityKg - chosen.quantityKg} kg.'
+              : '${chosen.farmerName} supplies ${chosen.quantityKg} kg of '
+                    '${r.cropName} for RM '
+                    '${chosen.totalPrice.toStringAsFixed(2)}. The other '
+                    'offers will be declined.',
           style: const TextStyle(fontSize: 15),
         ),
         actions: [
@@ -580,7 +591,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
               padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
                 label: Text(
-                  f[0].toUpperCase() + f.substring(1),
+                  f == 'accepted'
+                      ? 'Fulfilled'
+                      : f[0].toUpperCase() + f.substring(1),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -697,7 +710,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Accepted by ${r.acceptedByName}',
+                    'Fulfilled by ${r.acceptedByName}',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -736,6 +749,16 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   ],
                 ),
               ),
+          ],
+          if (_isFarmer &&
+              !r.isOpen &&
+              r.acceptedById != ApiService.currentUser?.id &&
+              r.myOffer != null) ...[
+            const SizedBox(height: 6),
+            const Text(
+              'The buyer chose another offer. This request is closed.',
+              style: TextStyle(fontSize: 13, color: TamuColors.textSecondary),
+            ),
           ],
           if (busy) ...[
             const SizedBox(height: 12),
@@ -794,7 +817,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Your offer: RM ${offer.pricePerKg.toStringAsFixed(2)}/kg · '
+            'Your offer: ${offer.quantityKg} kg at RM '
+            '${offer.pricePerKg.toStringAsFixed(2)}/kg · '
             'total RM ${offer.totalPrice.toStringAsFixed(2)}',
             style: const TextStyle(
               fontSize: 14,
@@ -832,7 +856,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
       case 'accepted':
         bg = const Color(0xFFE3F2FD);
         fg = TamuColors.info;
-        label = 'Accepted';
+        label = 'Fulfilled';
       default:
         bg = const Color(0xFFFFEBEE);
         fg = TamuColors.danger;
@@ -923,9 +947,15 @@ class _RequestsScreenState extends State<RequestsScreen> {
 /// productId == null means the crop is not listed (stock at home).
 class _OfferDraft {
   final int? productId;
+  final int quantityKg;
   final double pricePerKg;
   final String? note;
-  const _OfferDraft({this.productId, required this.pricePerKg, this.note});
+  const _OfferDraft({
+    this.productId,
+    required this.quantityKg,
+    required this.pricePerKg,
+    this.note,
+  });
 }
 
 /// True when the listing and the request name the same crop: every word of
@@ -955,14 +985,23 @@ class _OfferDialog extends StatefulWidget {
 
 class _OfferDialogState extends State<_OfferDialog> {
   Product? _listing;
+  final _kg = TextEditingController();
   final _price = TextEditingController();
   final _note = TextEditingController();
   String? _error;
+  String? _kgError;
 
   @override
   void initState() {
     super.initState();
-    if (widget.listings.isNotEmpty) _choose(widget.listings.first);
+    _choose(widget.listings.isEmpty ? null : widget.listings.first);
+  }
+
+  /// Most this farmer can offer: the request, or less if the listing is short.
+  int get _maxKg {
+    final need = widget.request.quantityKg;
+    final stock = _listing?.stockQuantity;
+    return stock != null && stock < need ? stock : need;
   }
 
   // No listing chosen: the farmer has the crop but never listed it.
@@ -970,6 +1009,7 @@ class _OfferDialogState extends State<_OfferDialog> {
 
   @override
   void dispose() {
+    _kg.dispose();
     _price.dispose();
     _note.dispose();
     super.dispose();
@@ -978,10 +1018,21 @@ class _OfferDialogState extends State<_OfferDialog> {
   void _choose(Product? p) {
     _listing = p;
     _price.text = p == null ? '' : p.pricePerUnit.toStringAsFixed(2);
+    _kg.text = '$_maxKg';
+    _kgError = null;
     _error = null;
   }
 
   void _submit() {
+    final kg = int.tryParse(_kg.text.trim());
+    if (kg == null || kg <= 0) {
+      setState(() => _kgError = 'Enter how many kg you can supply');
+      return;
+    }
+    if (kg > _maxKg) {
+      setState(() => _kgError = 'You can offer up to $_maxKg kg.');
+      return;
+    }
     final price = double.tryParse(_price.text.trim());
     final max = widget.request.maxPricePerKg;
     String? error;
@@ -997,6 +1048,7 @@ class _OfferDialogState extends State<_OfferDialog> {
     Navigator.of(context).pop(
       _OfferDraft(
         productId: _listing?.id,
+        quantityKg: kg,
         pricePerKg: price!,
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       ),
@@ -1007,6 +1059,7 @@ class _OfferDialogState extends State<_OfferDialog> {
   Widget build(BuildContext context) {
     final r = widget.request;
     final price = double.tryParse(_price.text.trim());
+    final kg = int.tryParse(_kg.text.trim());
     return AlertDialog(
       title: Text('Offer to supply ${r.cropName}'),
       content: SingleChildScrollView(
@@ -1092,6 +1145,18 @@ class _OfferDialogState extends State<_OfferDialog> {
             _homeOption(r),
             const SizedBox(height: 8),
             TextField(
+              controller: _kg,
+              keyboardType: TextInputType.number,
+              onChanged: (_) => setState(() => _kgError = null),
+              decoration: InputDecoration(
+                labelText: tr('Kilograms you can supply'),
+                suffixText: 'kg',
+                helperText: tr('Less than ${r.quantityKg} kg is fine'),
+                errorText: tr(_kgError),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
               controller: _price,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
@@ -1103,12 +1168,12 @@ class _OfferDialogState extends State<_OfferDialog> {
                 errorText: tr(_error),
               ),
             ),
-            if (price != null && price > 0)
+            if (price != null && price > 0 && kg != null && kg > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   'Total for the buyer: RM '
-                  '${(price * r.quantityKg).toStringAsFixed(2)}',
+                  '${(price * kg).toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1169,7 +1234,7 @@ class _OfferDialogState extends State<_OfferDialog> {
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                 ),
                 Text(
-                  'I have ${r.quantityKg} kg of ${r.cropName} ready',
+                  'I have ${r.cropName}, but not in My listings',
                   style: const TextStyle(
                     fontSize: 12,
                     color: TamuColors.textSecondary,
@@ -1291,11 +1356,26 @@ class _OffersSheet extends StatelessWidget {
                           ],
                         ),
                         Text(
+                          '${o.quantityKg} kg  ·  RM '
+                          '${o.pricePerKg.toStringAsFixed(2)}/kg',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (o.quantityKg < request.quantityKg)
+                          Text(
+                            'Part of the ${request.quantityKg} kg needed',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: TamuColors.amber,
+                            ),
+                          ),
+                        Text(
                           o.fromHome
-                              ? 'Not listed  ·  RM '
-                                    '${o.pricePerKg.toStringAsFixed(2)}/kg'
-                              : '${o.productName ?? request.cropName}  ·  RM '
-                                    '${o.pricePerKg.toStringAsFixed(2)}/kg',
+                              ? "Not listed (farmer's own stock)"
+                              : 'From listing: '
+                                    '${o.productName ?? request.cropName}',
                           style: const TextStyle(
                             fontSize: 13,
                             color: TamuColors.textSecondary,

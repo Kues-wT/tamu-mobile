@@ -575,6 +575,7 @@ class RequestOffer {
   final String? productName;
   final String? productPhotoUrl;
   final bool fromHome; // farmer's own stock, not a listing
+  final int quantityKg; // may be less than the request
   final double pricePerKg;
   final double totalPrice;
   final String? note;
@@ -590,6 +591,7 @@ class RequestOffer {
     this.productName,
     this.productPhotoUrl,
     this.fromHome = false,
+    required this.quantityKg,
     required this.pricePerKg,
     required this.totalPrice,
     this.note,
@@ -606,6 +608,7 @@ class RequestOffer {
     productName: json['product_name'] as String?,
     productPhotoUrl: json['product_photo_url'] as String?,
     fromHome: json['from_home'] as bool? ?? false,
+    quantityKg: json['quantity_kg'] as int? ?? 0,
     pricePerKg: (json['price_per_kg'] as num).toDouble(),
     totalPrice: (json['total_price'] as num).toDouble(),
     note: json['note'] as String?,
@@ -1393,6 +1396,7 @@ class ApiService {
   static Future<RequestOffer> createOffer(
     int requestId, {
     int? productId,
+    int? quantityKg,
     double? pricePerKg,
     String? note,
   }) async {
@@ -1402,6 +1406,7 @@ class ApiService {
           headers: _headers,
           body: jsonEncode({
             'product_id': ?productId,
+            'quantity_kg': ?quantityKg,
             'price_per_kg': ?pricePerKg,
             if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
           }),
