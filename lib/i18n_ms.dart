@@ -683,7 +683,7 @@ const Map<String, String> kMalay = {
   'Enter a price per kg, e.g. 4.50': 'Masukkan harga sekilo, cth. 4.50',
   'The buyer pays at most RM {} per kg.': 'Pembeli membayar paling banyak RM {0} sekilo.',
   'Offer to supply {}': 'Tawaran untuk membekalkan {0}',
-  'To send an offer, you need a listing on sale today, sold by kg, with at least {} kg in stock. Add or update one in My listings, then come back.': 'Untuk menghantar tawaran, anda perlukan jualan yang dijual hari ini, mengikut kg, dengan sekurang-kurangnya {0} kg stok. Tambah atau kemas kini jualan di Jualan saya, kemudian kembali.',
+  'To send an offer, you need a {} listing on sale today, sold by kg, with at least {} kg in stock. Add or update one in My listings, then come back.': 'Untuk menghantar tawaran, anda perlukan jualan {0} yang dijual hari ini, mengikut kg, dengan sekurang-kurangnya {1} kg stok. Tambah atau kemas kini jualan di Jualan saya, kemudian kembali.',
   'Supply it from:': 'Bekalkan daripada:',
   'Your price per kg (RM)': 'Harga anda sekilo (RM)',
   'Total for the buyer: RM {}': 'Jumlah untuk pembeli: RM {0}',

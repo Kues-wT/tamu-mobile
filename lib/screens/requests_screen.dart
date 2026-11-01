@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
+
 import '../i18n.dart';
 import '../widgets/skeleton.dart';
 import '../theme.dart';
@@ -48,9 +49,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 
   void _openOrders() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const orders.OrdersScreen()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const orders.OrdersScreen()));
   }
 
   Future<void> _refresh() async {
@@ -62,8 +62,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: color,
-        content:
-            Text(msg, style: const TextStyle(fontSize: 16, color: Colors.white)),
+        content: Text(
+          msg,
+          style: const TextStyle(fontSize: 16, color: Colors.white),
+        ),
       ),
     );
   }
@@ -82,15 +84,18 @@ class _RequestsScreenState extends State<RequestsScreen> {
     }
     if (!mounted) return;
 
-    // Only listings that can cover the amount and are on sale today
-    // (the server refuses the others).
+    // Only listings of the requested crop that can cover the amount and
+    // are on sale today (the server refuses the others).
     final today = DateUtils.dateOnly(DateTime.now());
     final usable = mine
-        .where((p) =>
-            p.unit == 'kg' &&
-            p.stockQuantity >= r.quantityKg &&
-            (p.availableFrom == null || !p.availableFrom!.isAfter(today)) &&
-            (p.availableUntil == null || !p.availableUntil!.isBefore(today)))
+        .where(
+          (p) =>
+              sameCrop(p.name, r.cropName) &&
+              p.unit == 'kg' &&
+              p.stockQuantity >= r.quantityKg &&
+              (p.availableFrom == null || !p.availableFrom!.isAfter(today)) &&
+              (p.availableUntil == null || !p.availableUntil!.isBefore(today)),
+        )
         .toList();
 
     final draft = await showDialog<_OfferDraft>(
@@ -251,9 +256,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
                     hintText: tr('e.g. Sayur Sawi'),
                     prefixIcon: Icon(Icons.eco_outlined),
                   ),
-                  validator: trValidator((v) => (v == null || v.trim().isEmpty)
-                      ? 'Please enter the crop name'
-                      : null),
+                  validator: trValidator(
+                    (v) => (v == null || v.trim().isEmpty)
+                        ? 'Please enter the crop name'
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: TamuSizes.gap),
                 TextFormField(
@@ -275,8 +282,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 const SizedBox(height: TamuSizes.gap),
                 TextFormField(
                   controller: priceCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   style: const TextStyle(fontSize: 16),
                   decoration: InputDecoration(
                     labelText: tr('Max price per kg (optional)'),
@@ -345,7 +353,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   Future<void> _openNotifications() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const notifications.NotificationsScreen()),
+      MaterialPageRoute(
+        builder: (_) => const notifications.NotificationsScreen(),
+      ),
     );
   }
 
@@ -393,7 +403,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
                           return const SkeletonList(
-                              kind: SkeletonKind.request, count: 4);
+                            kind: SkeletonKind.request,
+                            count: 4,
+                          );
                         }
                         if (snapshot.hasError) {
                           return _buildError(snapshot.error.toString());
@@ -429,21 +441,28 @@ class _RequestsScreenState extends State<RequestsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Requests',
-                    style: TextStyle(
-                        fontSize: 21, fontWeight: FontWeight.w600)),
+                Text(
+                  'Requests',
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w600),
+                ),
                 SizedBox(height: 2),
-                Text('Ask local farmers for produce you need',
-                    style: TextStyle(
-                        fontSize: 12, color: TamuColors.textSecondary)),
+                Text(
+                  'Ask local farmers for produce you need',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: TamuColors.textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
           IconButton(
             tooltip: tr('Notifications'),
             onPressed: _openNotifications,
-            icon: const Icon(Icons.notifications_none,
-                color: TamuColors.textPrimary),
+            icon: const Icon(
+              Icons.notifications_none,
+              color: TamuColors.textPrimary,
+            ),
           ),
         ],
       ),
@@ -498,7 +517,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
             _buyerNavItem(Icons.forum_outlined, 'Requests', true, () {}),
             _buyerNavItem(Icons.person_outline, 'Profile', false, () {
               Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const profile.ProfileScreen()),
+                MaterialPageRoute(
+                  builder: (_) => const profile.ProfileScreen(),
+                ),
               );
             }),
           ],
@@ -508,7 +529,11 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 
   Widget _buyerNavItem(
-      IconData icon, String label, bool selected, VoidCallback onTap) {
+    IconData icon,
+    String label,
+    bool selected,
+    VoidCallback onTap,
+  ) {
     return Expanded(
       child: InkWell(
         onTap: onTap,
@@ -524,16 +549,20 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ),
             ),
             const SizedBox(height: 5),
-            Icon(icon,
-                size: 19,
-                color: selected ? TamuColors.primary : TamuColors.textSecondary),
+            Icon(
+              icon,
+              size: 19,
+              color: selected ? TamuColors.primary : TamuColors.textSecondary,
+            ),
             const SizedBox(height: 1),
-            Text(label,
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: selected ? TamuColors.primary : TamuColors.textSecondary,
-                )),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? TamuColors.primary : TamuColors.textSecondary,
+              ),
+            ),
           ],
         ),
       ),
@@ -563,8 +592,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 selectedColor: TamuColors.primary,
                 backgroundColor: Colors.white,
                 side: BorderSide(
-                    color:
-                        _filter == f ? TamuColors.primary : TamuColors.border),
+                  color: _filter == f ? TamuColors.primary : TamuColors.border,
+                ),
                 onSelected: (_) => setState(() {
                   _filter = f;
                   _load();
@@ -594,33 +623,54 @@ class _RequestsScreenState extends State<RequestsScreen> {
           Row(
             children: [
               Expanded(
-                child: Text(r.cropName,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
+                child: Text(
+                  r.cropName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               _statusBadge(r.status),
             ],
           ),
           const SizedBox(height: 4),
-          Text('${r.quantityKg} kg needed',
-              style: const TextStyle(fontSize: 16, color: TamuColors.primary)),
+          Text(
+            '${r.quantityKg} kg needed',
+            style: const TextStyle(fontSize: 16, color: TamuColors.primary),
+          ),
           if (r.maxPricePerKg != null)
-            Text('Up to RM ${r.maxPricePerKg!.toStringAsFixed(2)} /kg',
-                style: const TextStyle(
-                    fontSize: 14, color: TamuColors.textSecondary)),
+            Text(
+              'Up to RM ${r.maxPricePerKg!.toStringAsFixed(2)} /kg',
+              style: const TextStyle(
+                fontSize: 14,
+                color: TamuColors.textSecondary,
+              ),
+            ),
           const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.person_outline,
-                  size: 16, color: TamuColors.textSecondary),
+              const Icon(
+                Icons.person_outline,
+                size: 16,
+                color: TamuColors.textSecondary,
+              ),
               const SizedBox(width: 4),
-              Text(mine ? 'You' : r.buyerName,
-                  style: const TextStyle(
-                      fontSize: 14, color: TamuColors.textSecondary)),
+              Text(
+                mine ? 'You' : r.buyerName,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: TamuColors.textSecondary,
+                ),
+              ),
               const Spacer(),
-              Text(_timeAgo(r.createdAt),
-                  style: const TextStyle(
-                      fontSize: 12, color: TamuColors.textSecondary)),
+              Text(
+                _timeAgo(r.createdAt),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: TamuColors.textSecondary,
+                ),
+              ),
             ],
           ),
           if (r.note != null && r.note!.isNotEmpty) ...[
@@ -639,15 +689,21 @@ class _RequestsScreenState extends State<RequestsScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.check_circle,
-                    size: 16, color: TamuColors.primary),
+                const Icon(
+                  Icons.check_circle,
+                  size: 16,
+                  color: TamuColors.primary,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text('Accepted by ${r.acceptedByName}',
-                      style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: TamuColors.primary)),
+                  child: Text(
+                    'Accepted by ${r.acceptedByName}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: TamuColors.primary,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -656,13 +712,20 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Row(
                   children: [
-                    const Icon(Icons.receipt_long_outlined,
-                        size: 16, color: TamuColors.info),
+                    const Icon(
+                      Icons.receipt_long_outlined,
+                      size: 16,
+                      color: TamuColors.info,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text('Became order #${r.convertedOrderId}',
-                          style: const TextStyle(
-                              fontSize: 13, color: TamuColors.info)),
+                      child: Text(
+                        'Became order #${r.convertedOrderId}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: TamuColors.info,
+                        ),
+                      ),
                     ),
                     // Only the two people in the order can open it.
                     if (mine || r.acceptedById == ApiService.currentUser?.id)
@@ -694,11 +757,13 @@ class _RequestsScreenState extends State<RequestsScreen> {
               ElevatedButton.icon(
                 onPressed: () => _showOffers(r),
                 icon: const Icon(Icons.local_offer_outlined),
-                label: Text(r.offerCount == 0
-                    ? 'No offers yet'
-                    : r.offerCount == 1
-                        ? 'See 1 offer'
-                        : 'See ${r.offerCount} offers'),
+                label: Text(
+                  r.offerCount == 0
+                      ? 'No offers yet'
+                      : r.offerCount == 1
+                      ? 'See 1 offer'
+                      : 'See ${r.offerCount} offers',
+                ),
               ),
               const SizedBox(height: 8),
               OutlinedButton(
@@ -732,12 +797,15 @@ class _RequestsScreenState extends State<RequestsScreen> {
             'Your offer: RM ${offer.pricePerKg.toStringAsFixed(2)}/kg · '
             'total RM ${offer.totalPrice.toStringAsFixed(2)}',
             style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: TamuColors.primary),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: TamuColors.primary,
+            ),
           ),
-          const Text('Waiting for the buyer to choose',
-              style: TextStyle(fontSize: 13, color: TamuColors.textSecondary)),
+          const Text(
+            'Waiting for the buyer to choose',
+            style: TextStyle(fontSize: 13, color: TamuColors.textSecondary),
+          ),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
@@ -773,11 +841,14 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(label,
-          style:
-              TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: fg)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: fg),
+      ),
     );
   }
 
@@ -809,8 +880,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
                 ? 'Tap "Request a Crop" to ask farmers for produce.'
                 : 'Buyer requests will appear here.',
             textAlign: TextAlign.center,
-            style:
-                const TextStyle(fontSize: 14, color: TamuColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 14,
+              color: TamuColors.textSecondary,
+            ),
           ),
         ),
       ],
@@ -822,16 +895,23 @@ class _RequestsScreenState extends State<RequestsScreen> {
       padding: const EdgeInsets.all(24),
       children: [
         const SizedBox(height: 40),
-        const Icon(Icons.campaign_outlined,
-            size: 56, color: TamuColors.textSecondary),
+        const Icon(
+          Icons.campaign_outlined,
+          size: 56,
+          color: TamuColors.textSecondary,
+        ),
         const SizedBox(height: 12),
-        const Text('Cannot load requests',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        const Text(
+          'Cannot load requests',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 12),
-        Text(msg.replaceFirst('Exception: ', ''),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: TamuColors.danger)),
+        Text(
+          msg.replaceFirst('Exception: ', ''),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, color: TamuColors.danger),
+        ),
         const SizedBox(height: 16),
         ElevatedButton(onPressed: _refresh, child: const Text('Try Again')),
       ],
@@ -845,12 +925,28 @@ class _OfferDraft {
   final int productId;
   final double pricePerKg;
   final String? note;
-  const _OfferDraft(
-      {required this.productId, required this.pricePerKg, this.note});
+  const _OfferDraft({
+    required this.productId,
+    required this.pricePerKg,
+    this.note,
+  });
 }
 
 /// FR6 bidding: the farmer picks a listing, sets a price per kg (the
 /// listing's price by default) and can add a note for the buyer.
+/// True when the listing and the request name the same crop: every word of
+/// the shorter name appears in the longer one ("Bayam", "Sayur Bayam").
+bool sameCrop(String a, String b) {
+  Set<String> words(String s) => s
+      .toLowerCase()
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((w) => w.isNotEmpty)
+      .toSet();
+  final x = words(a), y = words(b);
+  if (x.isEmpty || y.isEmpty) return false;
+  return x.length <= y.length ? y.containsAll(x) : x.containsAll(y);
+}
+
 class _OfferDialog extends StatefulWidget {
   final CropRequest request;
   final List<Product> listings;
@@ -898,11 +994,13 @@ class _OfferDialogState extends State<_OfferDialog> {
       setState(() => _error = error);
       return;
     }
-    Navigator.of(context).pop(_OfferDraft(
-      productId: _listing!.id,
-      pricePerKg: price!,
-      note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-    ));
+    Navigator.of(context).pop(
+      _OfferDraft(
+        productId: _listing!.id,
+        pricePerKg: price!,
+        note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+      ),
+    );
   }
 
   @override
@@ -916,12 +1014,18 @@ class _OfferDialogState extends State<_OfferDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${r.buyerName} needs ${r.quantityKg} kg.',
-                style: const TextStyle(fontSize: 15)),
+            Text(
+              '${r.buyerName} needs ${r.quantityKg} kg.',
+              style: const TextStyle(fontSize: 15),
+            ),
             if (r.maxPricePerKg != null)
-              Text('Up to RM ${r.maxPricePerKg!.toStringAsFixed(2)} /kg',
-                  style: const TextStyle(
-                      fontSize: 13, color: TamuColors.textSecondary)),
+              Text(
+                'Up to RM ${r.maxPricePerKg!.toStringAsFixed(2)} /kg',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: TamuColors.textSecondary,
+                ),
+              ),
             const SizedBox(height: 12),
             if (widget.listings.isEmpty)
               Container(
@@ -931,16 +1035,17 @@ class _OfferDialogState extends State<_OfferDialog> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'To send an offer, you need a listing on sale today, sold '
-                  'by kg, with at least ${r.quantityKg} kg in stock. Add or '
-                  'update one in My listings, then come back.',
+                  'To send an offer, you need a ${r.cropName} listing on sale '
+                  'today, sold by kg, with at least ${r.quantityKg} kg in '
+                  'stock. Add or update one in My listings, then come back.',
                   style: const TextStyle(fontSize: 13),
                 ),
               )
             else ...[
-              const Text('Supply it from:',
-                  style: TextStyle(
-                      fontSize: 14, color: TamuColors.textSecondary)),
+              const Text(
+                'Supply it from:',
+                style: TextStyle(fontSize: 14, color: TamuColors.textSecondary),
+              ),
               const SizedBox(height: 6),
               for (final p in widget.listings)
                 Padding(
@@ -950,39 +1055,47 @@ class _OfferDialogState extends State<_OfferDialog> {
                     style: OutlinedButton.styleFrom(
                       alignment: Alignment.centerLeft,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       backgroundColor: _listing == p
                           ? TamuColors.primary.withValues(alpha: 0.08)
                           : null,
                       side: BorderSide(
-                          color: _listing == p
-                              ? TamuColors.primary
-                              : TamuColors.border,
-                          width: _listing == p ? 2 : 1),
+                        color: _listing == p
+                            ? TamuColors.primary
+                            : TamuColors.border,
+                        width: _listing == p ? 2 : 1,
+                      ),
                     ),
                     child: Row(
                       children: [
                         Icon(
-                            _listing == p
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_unchecked,
-                            size: 18,
-                            color: TamuColors.primary),
+                          _listing == p
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          size: 18,
+                          color: TamuColors.primary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(p.name,
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                p.name,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                               Text(
                                 'RM ${p.pricePerUnit.toStringAsFixed(2)}/kg  ·  '
                                 '${p.stockQuantity} kg in stock',
                                 style: const TextStyle(
-                                    fontSize: 12,
-                                    color: TamuColors.textSecondary),
+                                  fontSize: 12,
+                                  color: TamuColors.textSecondary,
+                                ),
                               ),
                             ],
                           ),
@@ -994,8 +1107,9 @@ class _OfferDialogState extends State<_OfferDialog> {
               const SizedBox(height: 8),
               TextField(
                 controller: _price,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 onChanged: (_) => setState(() => _error = null),
                 decoration: InputDecoration(
                   labelText: tr('Your price per kg (RM)'),
@@ -1010,9 +1124,10 @@ class _OfferDialogState extends State<_OfferDialog> {
                     'Total for the buyer: RM '
                     '${(price * r.quantityKg).toStringAsFixed(2)}',
                     style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: TamuColors.primary),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: TamuColors.primary,
+                    ),
                   ),
                 ),
               const SizedBox(height: 8),
@@ -1035,10 +1150,7 @@ class _OfferDialogState extends State<_OfferDialog> {
           child: const Text('Cancel', style: TextStyle(fontSize: 16)),
         ),
         if (widget.listings.isNotEmpty)
-          ElevatedButton(
-            onPressed: _submit,
-            child: const Text('Send offer'),
-          ),
+          ElevatedButton(onPressed: _submit, child: const Text('Send offer')),
       ],
     );
   }
@@ -1055,7 +1167,8 @@ class _OffersSheet extends StatelessWidget {
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.75),
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
         child: FutureBuilder<List<RequestOffer>>(
           future: ApiService.fetchOffers(request.id),
           builder: (context, snapshot) {
@@ -1077,23 +1190,32 @@ class _OffersSheet extends StatelessWidget {
             if (snapshot.hasError) {
               return Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(snapshot.error
-                    .toString()
-                    .replaceFirst('Exception: ', '')),
+                child: Text(
+                  snapshot.error.toString().replaceFirst('Exception: ', ''),
+                ),
               );
             }
-            final offers =
-                (snapshot.data ?? []).where((o) => o.isOpen).toList();
+            final offers = (snapshot.data ?? [])
+                .where((o) => o.isOpen)
+                .toList();
             return ListView(
               shrinkWrap: true,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               children: [
-                Text('Offers for ${request.cropName}',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-                Text('${request.quantityKg} kg needed',
-                    style: const TextStyle(
-                        fontSize: 14, color: TamuColors.textSecondary)),
+                Text(
+                  'Offers for ${request.cropName}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${request.quantityKg} kg needed',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: TamuColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 if (offers.isEmpty)
                   const Padding(
@@ -1103,7 +1225,9 @@ class _OffersSheet extends StatelessWidget {
                       'request.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 14, color: TamuColors.textSecondary),
+                        fontSize: 14,
+                        color: TamuColors.textSecondary,
+                      ),
                     ),
                   ),
                 for (final o in offers)
@@ -1120,29 +1244,41 @@ class _OffersSheet extends StatelessWidget {
                         Row(
                           children: [
                             Expanded(
-                              child: Text(o.farmerName,
-                                  style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700)),
-                            ),
-                            Text('RM ${o.totalPrice.toStringAsFixed(2)}',
+                              child: Text(
+                                o.farmerName,
                                 style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: TamuColors.primary)),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              'RM ${o.totalPrice.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: TamuColors.primary,
+                              ),
+                            ),
                           ],
                         ),
                         Text(
                           '${o.productName ?? request.cropName}  ·  RM '
                           '${o.pricePerKg.toStringAsFixed(2)}/kg',
                           style: const TextStyle(
-                              fontSize: 13, color: TamuColors.textSecondary),
+                            fontSize: 13,
+                            color: TamuColors.textSecondary,
+                          ),
                         ),
                         if (o.note != null) ...[
                           const SizedBox(height: 6),
-                          Text('"${o.note}"',
-                              style: const TextStyle(
-                                  fontSize: 14, fontStyle: FontStyle.italic)),
+                          Text(
+                            '"${o.note}"',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
                         ],
                         const SizedBox(height: 8),
                         SizedBox(
