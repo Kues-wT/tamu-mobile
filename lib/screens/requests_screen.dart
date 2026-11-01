@@ -919,21 +919,15 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 }
 
-/// What the farmer chose in the accept dialog.
-/// productId == null means "accept without creating an order".
+/// What the farmer chose in the offer dialog.
+/// productId == null means the crop is not listed (stock at home).
 class _OfferDraft {
-  final int productId;
+  final int? productId;
   final double pricePerKg;
   final String? note;
-  const _OfferDraft({
-    required this.productId,
-    required this.pricePerKg,
-    this.note,
-  });
+  const _OfferDraft({this.productId, required this.pricePerKg, this.note});
 }
 
-/// FR6 bidding: the farmer picks a listing, sets a price per kg (the
-/// listing's price by default) and can add a note for the buyer.
 /// True when the listing and the request name the same crop: every word of
 /// the shorter name appears in the longer one ("Bayam", "Sayur Bayam").
 bool sameCrop(String a, String b) {
@@ -947,6 +941,9 @@ bool sameCrop(String a, String b) {
   return x.length <= y.length ? y.containsAll(x) : x.containsAll(y);
 }
 
+/// FR6 bidding: the farmer picks a listing of the requested crop, or says
+/// they have it but never listed it, sets a price per kg (the listing's
+/// price by default) and can add a note for the buyer.
 class _OfferDialog extends StatefulWidget {
   final CropRequest request;
   final List<Product> listings;
@@ -968,6 +965,9 @@ class _OfferDialogState extends State<_OfferDialog> {
     if (widget.listings.isNotEmpty) _choose(widget.listings.first);
   }
 
+  // No listing chosen: the farmer has the crop but never listed it.
+  bool get _fromHome => _listing == null;
+
   @override
   void dispose() {
     _price.dispose();
@@ -975,9 +975,9 @@ class _OfferDialogState extends State<_OfferDialog> {
     super.dispose();
   }
 
-  void _choose(Product p) {
+  void _choose(Product? p) {
     _listing = p;
-    _price.text = p.pricePerUnit.toStringAsFixed(2);
+    _price.text = p == null ? '' : p.pricePerUnit.toStringAsFixed(2);
     _error = null;
   }
 
@@ -996,7 +996,7 @@ class _OfferDialogState extends State<_OfferDialog> {
     }
     Navigator.of(context).pop(
       _OfferDraft(
-        productId: _listing!.id,
+        productId: _listing?.id,
         pricePerKg: price!,
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       ),
@@ -1027,120 +1027,105 @@ class _OfferDialogState extends State<_OfferDialog> {
                 ),
               ),
             const SizedBox(height: 12),
-            if (widget.listings.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF8E1),
-                  borderRadius: BorderRadius.circular(8),
+            const Text(
+              'Supply it from:',
+              style: TextStyle(fontSize: 14, color: TamuColors.textSecondary),
+            ),
+            const SizedBox(height: 6),
+            for (final p in widget.listings)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _choose(p)),
+                  style: OutlinedButton.styleFrom(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    backgroundColor: _listing == p
+                        ? TamuColors.primary.withValues(alpha: 0.08)
+                        : null,
+                    side: BorderSide(
+                      color: _listing == p
+                          ? TamuColors.primary
+                          : TamuColors.border,
+                      width: _listing == p ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _listing == p
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                        size: 18,
+                        color: TamuColors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.name,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              'RM ${p.pricePerUnit.toStringAsFixed(2)}/kg  ·  '
+                              '${p.stockQuantity} kg in stock',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: TamuColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
+            _homeOption(r),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _price,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: (_) => setState(() => _error = null),
+              decoration: InputDecoration(
+                labelText: tr('Your price per kg (RM)'),
+                prefixText: 'RM ',
+                errorText: tr(_error),
+              ),
+            ),
+            if (price != null && price > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  'To send an offer, you need a ${r.cropName} listing on sale '
-                  'today, sold by kg, with at least ${r.quantityKg} kg in '
-                  'stock. Add or update one in My listings, then come back.',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              )
-            else ...[
-              const Text(
-                'Supply it from:',
-                style: TextStyle(fontSize: 14, color: TamuColors.textSecondary),
-              ),
-              const SizedBox(height: 6),
-              for (final p in widget.listings)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: OutlinedButton(
-                    onPressed: () => setState(() => _choose(p)),
-                    style: OutlinedButton.styleFrom(
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      backgroundColor: _listing == p
-                          ? TamuColors.primary.withValues(alpha: 0.08)
-                          : null,
-                      side: BorderSide(
-                        color: _listing == p
-                            ? TamuColors.primary
-                            : TamuColors.border,
-                        width: _listing == p ? 2 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _listing == p
-                              ? Icons.radio_button_checked
-                              : Icons.radio_button_unchecked,
-                          size: 18,
-                          color: TamuColors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                p.name,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                'RM ${p.pricePerUnit.toStringAsFixed(2)}/kg  ·  '
-                                '${p.stockQuantity} kg in stock',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: TamuColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                  'Total for the buyer: RM '
+                  '${(price * r.quantityKg).toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: TamuColors.primary,
                   ),
                 ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _price,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                onChanged: (_) => setState(() => _error = null),
-                decoration: InputDecoration(
-                  labelText: tr('Your price per kg (RM)'),
-                  prefixText: 'RM ',
-                  errorText: tr(_error),
-                ),
               ),
-              if (price != null && price > 0)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    'Total for the buyer: RM '
-                    '${(price * r.quantityKg).toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: TamuColors.primary,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _note,
-                maxLength: 300,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  labelText: tr('Note for the buyer (optional)'),
-                  hintText: tr('e.g. Harvested this morning'),
-                ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _note,
+              maxLength: 300,
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: tr('Note for the buyer (optional)'),
+                hintText: tr('e.g. Harvested this morning'),
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -1149,9 +1134,52 @@ class _OfferDialogState extends State<_OfferDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel', style: TextStyle(fontSize: 16)),
         ),
-        if (widget.listings.isNotEmpty)
-          ElevatedButton(onPressed: _submit, child: const Text('Send offer')),
+        ElevatedButton(onPressed: _submit, child: const Text('Send offer')),
       ],
+    );
+  }
+
+  Widget _homeOption(CropRequest r) {
+    final on = _fromHome;
+    return OutlinedButton(
+      onPressed: () => setState(() => _choose(null)),
+      style: OutlinedButton.styleFrom(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        backgroundColor: on ? TamuColors.primary.withValues(alpha: 0.08) : null,
+        side: BorderSide(
+          color: on ? TamuColors.primary : TamuColors.border,
+          width: on ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            on ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            size: 18,
+            color: TamuColors.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Not listed',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  'I have ${r.quantityKg} kg of ${r.cropName} ready',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: TamuColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1263,8 +1291,11 @@ class _OffersSheet extends StatelessWidget {
                           ],
                         ),
                         Text(
-                          '${o.productName ?? request.cropName}  ·  RM '
-                          '${o.pricePerKg.toStringAsFixed(2)}/kg',
+                          o.fromHome
+                              ? 'Not listed  ·  RM '
+                                    '${o.pricePerKg.toStringAsFixed(2)}/kg'
+                              : '${o.productName ?? request.cropName}  ·  RM '
+                                    '${o.pricePerKg.toStringAsFixed(2)}/kg',
                           style: const TextStyle(
                             fontSize: 13,
                             color: TamuColors.textSecondary,

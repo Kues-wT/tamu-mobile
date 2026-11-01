@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
@@ -32,8 +33,8 @@ String? resolveServerUrl(String? url) {
 /// The server stores times in UTC without a time zone mark. Read them as
 /// UTC and show them in the phone's own time (Malaysia is UTC+8).
 DateTime parseServerTime(String value) {
-  final hasZone = value.endsWith('Z') ||
-      RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value);
+  final hasZone =
+      value.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value);
   return DateTime.parse(hasZone ? value : '${value}Z').toLocal();
 }
 
@@ -46,13 +47,13 @@ String? _dateOnlyIso(DateTime? value) {
 }
 
 String _pluralUnit(String unit) => switch (unit) {
-      'kg' => 'kg',
-      'bunch' => 'bunches',
-      'pack' => 'packs',
-      'piece' => 'pieces',
-      'bag' => 'bags',
-      _ => unit,
-    };
+  'kg' => 'kg',
+  'bunch' => 'bunches',
+  'pack' => 'packs',
+  'piece' => 'pieces',
+  'bag' => 'bags',
+  _ => unit,
+};
 
 String formatUnitQuantity(int quantity, String unit) =>
     '$quantity ${quantity == 1 ? unit : _pluralUnit(unit)}';
@@ -87,18 +88,18 @@ class AppUser {
   }) : displayName = displayName ?? fullName;
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
-        id: json['id'] as int,
-        email: json['email'] as String,
-        fullName: json['full_name'] as String,
-        role: json['role'] as String,
-        phone: json['phone'] as String?,
-        farmName: json['farm_name'] as String?,
-        address: json['address'] as String?,
-        latitude: (json['latitude'] as num?)?.toDouble(),
-        longitude: (json['longitude'] as num?)?.toDouble(),
-        nickname: json['nickname'] as String?,
-        displayName: json['display_name'] as String?,
-      );
+    id: json['id'] as int,
+    email: json['email'] as String,
+    fullName: json['full_name'] as String,
+    role: json['role'] as String,
+    phone: json['phone'] as String?,
+    farmName: json['farm_name'] as String?,
+    address: json['address'] as String?,
+    latitude: (json['latitude'] as num?)?.toDouble(),
+    longitude: (json['longitude'] as num?)?.toDouble(),
+    nickname: json['nickname'] as String?,
+    displayName: json['display_name'] as String?,
+  );
 
   bool get hasLocation => latitude != null && longitude != null;
 
@@ -123,12 +124,12 @@ class UserStats {
   });
 
   factory UserStats.fromJson(Map<String, dynamic> json) => UserStats(
-        listings: json['listings'] as int,
-        ordersPlaced: json['orders_placed'] as int,
-        ordersReceived: json['orders_received'] as int,
-        completedOrders: json['completed_orders'] as int,
-        memberSince: parseServerTime(json['member_since'] as String),
-      );
+    listings: json['listings'] as int,
+    ordersPlaced: json['orders_placed'] as int,
+    ordersReceived: json['orders_received'] as int,
+    completedOrders: json['completed_orders'] as int,
+    memberSince: parseServerTime(json['member_since'] as String),
+  );
 }
 
 class Product {
@@ -146,11 +147,11 @@ class Product {
   final double? latitude;
   final double? longitude;
   final double? distanceKm;
-  final String? modelKey;     // FR4 catalogue model
-  final String? modelUrl;     // FR4 resolved URL
-  final String? modelFile;    // FR4 uploaded scan filename
-  final String? modelSource;  // "catalogue" | "upload" | null
-  final String? photoUrl;     // FR2 crop photo, null = placeholder
+  final String? modelKey; // FR4 catalogue model
+  final String? modelUrl; // FR4 resolved URL
+  final String? modelFile; // FR4 uploaded scan filename
+  final String? modelSource; // "catalogue" | "upload" | null
+  final String? photoUrl; // FR2 crop photo, null = placeholder
 
   Product({
     required this.id,
@@ -175,32 +176,31 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
-        id: json['id'] as int,
-        name: json['name'] as String,
-        farmerName: json['farmer_name'] as String,
-        pricePerUnit:
-            ((json['price_per_unit'] ?? json['price_per_kg']) as num).toDouble(),
-        stockQuantity:
-            (json['stock_quantity'] ?? json['stock_kg']) as int,
-        unit: json['unit'] as String? ?? 'kg',
-        category: json['category'] as String,
-        availableFrom: json['available_from'] == null
-            ? null
-            : DateTime.parse(json['available_from'] as String),
-        availableUntil: json['available_until'] == null
-            ? null
-            : DateTime.parse(json['available_until'] as String),
-        ownerId: json['owner_id'] as int,
-        farmName: json['farm_name'] as String?,
-        latitude: (json['latitude'] as num?)?.toDouble(),
-        longitude: (json['longitude'] as num?)?.toDouble(),
-        distanceKm: (json['distance_km'] as num?)?.toDouble(),
-        modelKey: json['model_key'] as String?,
-        modelUrl: json['model_url'] as String?,
-        modelFile: json['model_file'] as String?,
-        modelSource: json['model_source'] as String?,
-        photoUrl: json['photo_url'] as String?,
-      );
+    id: json['id'] as int,
+    name: json['name'] as String,
+    farmerName: json['farmer_name'] as String,
+    pricePerUnit: ((json['price_per_unit'] ?? json['price_per_kg']) as num)
+        .toDouble(),
+    stockQuantity: (json['stock_quantity'] ?? json['stock_kg']) as int,
+    unit: json['unit'] as String? ?? 'kg',
+    category: json['category'] as String,
+    availableFrom: json['available_from'] == null
+        ? null
+        : DateTime.parse(json['available_from'] as String),
+    availableUntil: json['available_until'] == null
+        ? null
+        : DateTime.parse(json['available_until'] as String),
+    ownerId: json['owner_id'] as int,
+    farmName: json['farm_name'] as String?,
+    latitude: (json['latitude'] as num?)?.toDouble(),
+    longitude: (json['longitude'] as num?)?.toDouble(),
+    distanceKm: (json['distance_km'] as num?)?.toDouble(),
+    modelKey: json['model_key'] as String?,
+    modelUrl: json['model_url'] as String?,
+    modelFile: json['model_file'] as String?,
+    modelSource: json['model_source'] as String?,
+    photoUrl: json['photo_url'] as String?,
+  );
 
   /// True when this listing has a 3D model that can be viewed in AR.
   bool get hasArModel => modelUrl != null && modelUrl!.isNotEmpty;
@@ -277,7 +277,7 @@ class Order {
   /// Where the handover happens, for display.
   String get handoverPlace => isDelivery
       ? (deliveryAddress ??
-          (hasDeliveryPin ? 'Pinned on map' : 'Address not given'))
+            (hasDeliveryPin ? 'Pinned on map' : 'Address not given'))
       : (pickupPoint ?? "Farmer's public pickup point");
 
   String get paymentLabel => paymentMethod == 'mock_online'
@@ -285,31 +285,31 @@ class Order {
       : (isDelivery ? 'Pay on delivery' : 'Pay on pickup');
 
   factory Order.fromJson(Map<String, dynamic> json) => Order(
-        id: json['id'] as int,
-        productId: json['product_id'] as int,
-        buyerId: json['buyer_id'] as int,
-        buyerName: json['buyer_name'] as String,
-        quantity: (json['quantity'] ?? json['quantity_kg']) as int,
-        unit: json['unit'] as String? ?? 'kg',
-        totalPrice: (json['total_price'] as num).toDouble(),
-        status: json['status'] as String,
-        createdAt: parseServerTime(json['created_at'] as String),
-        productName: json['product_name'] as String?,
-        farmerName: json['farmer_name'] as String?,
-        productPhotoUrl: json['product_photo_url'] as String?,
-        fulfilmentMethod: json['fulfilment_method'] as String? ?? 'pickup',
-        deliveryAddress: json['delivery_address'] as String?,
-        deliveryLatitude: (json['delivery_latitude'] as num?)?.toDouble(),
-        deliveryLongitude: (json['delivery_longitude'] as num?)?.toDouble(),
-        pickupPoint: json['pickup_point'] as String?,
-        paymentMethod: json['payment_method'] as String? ?? 'pay_on_handover',
-        paymentRef: json['payment_ref'] as String?,
-        paidAt: json['paid_at'] == null
-            ? null
-            : parseServerTime(json['paid_at'] as String),
-        cancelReason: json['cancel_reason'] as String?,
-        cancelledBy: json['cancelled_by'] as String?,
-      );
+    id: json['id'] as int,
+    productId: json['product_id'] as int,
+    buyerId: json['buyer_id'] as int,
+    buyerName: json['buyer_name'] as String,
+    quantity: (json['quantity'] ?? json['quantity_kg']) as int,
+    unit: json['unit'] as String? ?? 'kg',
+    totalPrice: (json['total_price'] as num).toDouble(),
+    status: json['status'] as String,
+    createdAt: parseServerTime(json['created_at'] as String),
+    productName: json['product_name'] as String?,
+    farmerName: json['farmer_name'] as String?,
+    productPhotoUrl: json['product_photo_url'] as String?,
+    fulfilmentMethod: json['fulfilment_method'] as String? ?? 'pickup',
+    deliveryAddress: json['delivery_address'] as String?,
+    deliveryLatitude: (json['delivery_latitude'] as num?)?.toDouble(),
+    deliveryLongitude: (json['delivery_longitude'] as num?)?.toDouble(),
+    pickupPoint: json['pickup_point'] as String?,
+    paymentMethod: json['payment_method'] as String? ?? 'pay_on_handover',
+    paymentRef: json['payment_ref'] as String?,
+    paidAt: json['paid_at'] == null
+        ? null
+        : parseServerTime(json['paid_at'] as String),
+    cancelReason: json['cancel_reason'] as String?,
+    cancelledBy: json['cancelled_by'] as String?,
+  );
 }
 
 class MonthlySales {
@@ -324,10 +324,10 @@ class MonthlySales {
   });
 
   factory MonthlySales.fromJson(Map<String, dynamic> json) => MonthlySales(
-        label: json['label'] as String,
-        revenue: (json['revenue'] as num).toDouble(),
-        orders: json['orders'] as int,
-      );
+    label: json['label'] as String,
+    revenue: (json['revenue'] as num).toDouble(),
+    orders: json['orders'] as int,
+  );
 }
 
 class TopCrop {
@@ -346,12 +346,12 @@ class TopCrop {
   });
 
   factory TopCrop.fromJson(Map<String, dynamic> json) => TopCrop(
-        productName: json['product_name'] as String,
-        quantity: (json['quantity'] ?? json['quantity_kg']) as int,
-        unit: json['unit'] as String? ?? 'kg',
-        revenue: (json['revenue'] as num).toDouble(),
-        orders: json['orders'] as int,
-      );
+    productName: json['product_name'] as String,
+    quantity: (json['quantity'] ?? json['quantity_kg']) as int,
+    unit: json['unit'] as String? ?? 'kg',
+    revenue: (json['revenue'] as num).toDouble(),
+    orders: json['orders'] as int,
+  );
 }
 
 class SalesReport {
@@ -382,22 +382,22 @@ class SalesReport {
   });
 
   factory SalesReport.fromJson(Map<String, dynamic> json) => SalesReport(
-        farmerName: json['farmer_name'] as String,
-        totalRevenue: (json['total_revenue'] as num).toDouble(),
-        totalOrders: json['total_orders'] as int,
-        averageOrderValue: (json['average_order_value'] as num).toDouble(),
-        totalKgSold: json['total_kg_sold'] as int,
-        pendingRevenue: (json['pending_revenue'] as num).toDouble(),
-        pendingOrders: json['pending_orders'] as int,
-        thisMonthRevenue: (json['this_month_revenue'] as num).toDouble(),
-        thisMonthOrders: json['this_month_orders'] as int,
-        monthly: (json['monthly'] as List)
-            .map((m) => MonthlySales.fromJson(m))
-            .toList(),
-        topCrops: (json['top_crops'] as List)
-            .map((c) => TopCrop.fromJson(c))
-            .toList(),
-      );
+    farmerName: json['farmer_name'] as String,
+    totalRevenue: (json['total_revenue'] as num).toDouble(),
+    totalOrders: json['total_orders'] as int,
+    averageOrderValue: (json['average_order_value'] as num).toDouble(),
+    totalKgSold: json['total_kg_sold'] as int,
+    pendingRevenue: (json['pending_revenue'] as num).toDouble(),
+    pendingOrders: json['pending_orders'] as int,
+    thisMonthRevenue: (json['this_month_revenue'] as num).toDouble(),
+    thisMonthOrders: json['this_month_orders'] as int,
+    monthly: (json['monthly'] as List)
+        .map((m) => MonthlySales.fromJson(m))
+        .toList(),
+    topCrops: (json['top_crops'] as List)
+        .map((c) => TopCrop.fromJson(c))
+        .toList(),
+  );
 }
 
 class NearbyFarm {
@@ -424,16 +424,16 @@ class NearbyFarm {
   });
 
   factory NearbyFarm.fromJson(Map<String, dynamic> json) => NearbyFarm(
-        ownerId: json['owner_id'] as int,
-        farmerName: json['farmer_name'] as String,
-        farmName: json['farm_name'] as String?,
-        address: json['address'] as String?,
-        latitude: (json['latitude'] as num).toDouble(),
-        longitude: (json['longitude'] as num).toDouble(),
-        distanceKm: (json['distance_km'] as num?)?.toDouble(),
-        listings: json['listings'] as int,
-        phone: json['phone'] as String?,
-      );
+    ownerId: json['owner_id'] as int,
+    farmerName: json['farmer_name'] as String,
+    farmName: json['farm_name'] as String?,
+    address: json['address'] as String?,
+    latitude: (json['latitude'] as num).toDouble(),
+    longitude: (json['longitude'] as num).toDouble(),
+    distanceKm: (json['distance_km'] as num?)?.toDouble(),
+    listings: json['listings'] as int,
+    phone: json['phone'] as String?,
+  );
 }
 
 class ArModel {
@@ -456,14 +456,14 @@ class ArModel {
   });
 
   factory ArModel.fromJson(Map<String, dynamic> json) => ArModel(
-        key: json['key'] as String,
-        label: json['label'] as String,
-        category: json['category'] as String,
-        malay: json['malay'] as String?,
-        sizeCm: (json['size_cm'] as num?)?.toDouble(),
-        url: json['url'] as String,
-        sizeKb: (json['size_kb'] as num).toDouble(),
-      );
+    key: json['key'] as String,
+    label: json['label'] as String,
+    category: json['category'] as String,
+    malay: json['malay'] as String?,
+    sizeCm: (json['size_cm'] as num?)?.toDouble(),
+    url: json['url'] as String,
+    sizeKb: (json['size_kb'] as num).toDouble(),
+  );
 
   /// True when every word of [query] appears in the English or Malay name.
   bool matches(String query) {
@@ -544,23 +544,23 @@ class CropRequest {
   });
 
   factory CropRequest.fromJson(Map<String, dynamic> json) => CropRequest(
-        id: json['id'] as int,
-        buyerId: json['buyer_id'] as int,
-        buyerName: json['buyer_name'] as String,
-        cropName: json['crop_name'] as String,
-        quantityKg: json['quantity_kg'] as int,
-        maxPricePerKg: (json['max_price_per_kg'] as num?)?.toDouble(),
-        note: json['note'] as String?,
-        status: json['status'] as String,
-        acceptedById: json['accepted_by_id'] as int?,
-        acceptedByName: json['accepted_by_name'] as String?,
-        convertedOrderId: json['converted_order_id'] as int?,
-        createdAt: parseServerTime(json['created_at'] as String),
-        offerCount: json['offer_count'] as int? ?? 0,
-        myOffer: json['my_offer'] == null
-            ? null
-            : RequestOffer.fromJson(json['my_offer'] as Map<String, dynamic>),
-      );
+    id: json['id'] as int,
+    buyerId: json['buyer_id'] as int,
+    buyerName: json['buyer_name'] as String,
+    cropName: json['crop_name'] as String,
+    quantityKg: json['quantity_kg'] as int,
+    maxPricePerKg: (json['max_price_per_kg'] as num?)?.toDouble(),
+    note: json['note'] as String?,
+    status: json['status'] as String,
+    acceptedById: json['accepted_by_id'] as int?,
+    acceptedByName: json['accepted_by_name'] as String?,
+    convertedOrderId: json['converted_order_id'] as int?,
+    createdAt: parseServerTime(json['created_at'] as String),
+    offerCount: json['offer_count'] as int? ?? 0,
+    myOffer: json['my_offer'] == null
+        ? null
+        : RequestOffer.fromJson(json['my_offer'] as Map<String, dynamic>),
+  );
 
   bool get isOpen => status == 'open';
 }
@@ -574,6 +574,7 @@ class RequestOffer {
   final int productId;
   final String? productName;
   final String? productPhotoUrl;
+  final bool fromHome; // farmer's own stock, not a listing
   final double pricePerKg;
   final double totalPrice;
   final String? note;
@@ -588,6 +589,7 @@ class RequestOffer {
     required this.productId,
     this.productName,
     this.productPhotoUrl,
+    this.fromHome = false,
     required this.pricePerKg,
     required this.totalPrice,
     this.note,
@@ -596,19 +598,20 @@ class RequestOffer {
   });
 
   factory RequestOffer.fromJson(Map<String, dynamic> json) => RequestOffer(
-        id: json['id'] as int,
-        requestId: json['request_id'] as int,
-        farmerId: json['farmer_id'] as int,
-        farmerName: json['farmer_name'] as String,
-        productId: json['product_id'] as int,
-        productName: json['product_name'] as String?,
-        productPhotoUrl: json['product_photo_url'] as String?,
-        pricePerKg: (json['price_per_kg'] as num).toDouble(),
-        totalPrice: (json['total_price'] as num).toDouble(),
-        note: json['note'] as String?,
-        status: json['status'] as String,
-        createdAt: parseServerTime(json['created_at'] as String),
-      );
+    id: json['id'] as int,
+    requestId: json['request_id'] as int,
+    farmerId: json['farmer_id'] as int,
+    farmerName: json['farmer_name'] as String,
+    productId: json['product_id'] as int,
+    productName: json['product_name'] as String?,
+    productPhotoUrl: json['product_photo_url'] as String?,
+    fromHome: json['from_home'] as bool? ?? false,
+    pricePerKg: (json['price_per_kg'] as num).toDouble(),
+    totalPrice: (json['total_price'] as num).toDouble(),
+    note: json['note'] as String?,
+    status: json['status'] as String,
+    createdAt: parseServerTime(json['created_at'] as String),
+  );
 
   bool get isOpen => status == 'open';
 }
@@ -625,10 +628,10 @@ class Badges {
   });
 
   factory Badges.fromJson(Map<String, dynamic> json) => Badges(
-        unreadNotifications: json['unread_notifications'] as int,
-        pendingOrders: json['pending_orders'] as int,
-        openRequests: json['open_requests'] as int,
-      );
+    unreadNotifications: json['unread_notifications'] as int,
+    pendingOrders: json['pending_orders'] as int,
+    openRequests: json['open_requests'] as int,
+  );
 }
 
 class ModelUploadResult {
@@ -709,10 +712,12 @@ class ApiService {
     final deadline = DateTime.now().add(kServerWakeTime);
     while (true) {
       try {
-        final response = await http.get(
-          Uri.parse('$kBaseUrl/me'),
-          headers: {'Authorization': 'Bearer $saved'},
-        ).timeout(const Duration(seconds: 30));
+        final response = await http
+            .get(
+              Uri.parse('$kBaseUrl/me'),
+              headers: {'Authorization': 'Bearer $saved'},
+            )
+            .timeout(const Duration(seconds: 30));
         if (response.statusCode == 200) {
           _token = saved;
           currentUser = AppUser.fromJson(jsonDecode(response.body));
@@ -734,9 +739,9 @@ class ApiService {
   }
 
   static Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        if (_token != null) 'Authorization': 'Bearer $_token',
-      };
+    'Content-Type': 'application/json',
+    if (_token != null) 'Authorization': 'Bearer $_token',
+  };
 
   // FR1 Admin: the admin panel (lib/admin/) makes its own requests.
   static Map<String, String> get authHeaders => _headers;
@@ -764,13 +769,15 @@ class ApiService {
 
   /// POST /login  - note this endpoint wants form data, not JSON.
   static Future<AppUser> login(String email, String password) async {
-    final response = await http.post(
-      Uri.parse('$kBaseUrl/login'),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {'username': email, 'password': password},
-      // Longer than other calls: it may be the request that wakes the
-      // sleeping cloud server.
-    ).timeout(kServerWakeTime);
+    final response = await http
+        .post(
+          Uri.parse('$kBaseUrl/login'),
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: {'username': email, 'password': password},
+          // Longer than other calls: it may be the request that wakes the
+          // sleeping cloud server.
+        )
+        .timeout(kServerWakeTime);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -861,8 +868,13 @@ class ApiService {
             'phone': ?phone,
             'farm_name': ?farmName,
             'address': ?address,
-            if (clearLocation) ...{'latitude': null, 'longitude': null}
-            else ...{'latitude': ?latitude, 'longitude': ?longitude},
+            if (clearLocation) ...{
+              'latitude': null,
+              'longitude': null,
+            } else ...{
+              'latitude': ?latitude,
+              'longitude': ?longitude,
+            },
           }),
         )
         .timeout(const Duration(seconds: 10));
@@ -1055,9 +1067,11 @@ class ApiService {
   /// GET /orders - buyers see orders they placed, farmers see orders received.
   static Future<List<Order>> fetchOrders({String? status}) async {
     final uri = Uri.parse(
-        '$kBaseUrl/orders${status != null ? '?status=$status' : ''}');
-    final response =
-        await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
+      '$kBaseUrl/orders${status != null ? '?status=$status' : ''}',
+    );
+    final response = await http
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
@@ -1203,8 +1217,13 @@ class ApiService {
     }
     const sides = ['front', 'right', 'back', 'left'];
     for (var i = 0; i < 4; i++) {
-      req.files.add(http.MultipartFile.fromBytes(sides[i], photos[i],
-          filename: names[i].isEmpty ? '${sides[i]}.jpg' : names[i]));
+      req.files.add(
+        http.MultipartFile.fromBytes(
+          sides[i],
+          photos[i],
+          filename: names[i].isEmpty ? '${sides[i]}.jpg' : names[i],
+        ),
+      );
     }
     req.fields['height_cm'] = heightCm.toString();
 
@@ -1219,8 +1238,10 @@ class ApiService {
   /// DELETE /products/{id}/photo - back to the placeholder.
   static Future<void> deleteProductPhoto(int productId) async {
     final response = await http
-        .delete(Uri.parse('$kBaseUrl/products/$productId/photo'),
-            headers: _headers)
+        .delete(
+          Uri.parse('$kBaseUrl/products/$productId/photo'),
+          headers: _headers,
+        )
         .timeout(const Duration(seconds: 10));
     if (response.statusCode != 204 && response.statusCode != 200) {
       throw Exception(_errorMessage(response));
@@ -1230,8 +1251,10 @@ class ApiService {
   /// DELETE /products/{id}/model - remove the uploaded scan.
   static Future<void> deleteProductModel(int productId) async {
     final response = await http
-        .delete(Uri.parse('$kBaseUrl/products/$productId/model'),
-            headers: _headers)
+        .delete(
+          Uri.parse('$kBaseUrl/products/$productId/model'),
+          headers: _headers,
+        )
         .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 204 || response.statusCode == 200) return;
@@ -1250,7 +1273,8 @@ class ApiService {
     };
     final uri = Uri.parse('$kBaseUrl/notifications')
         .replace(queryParameters: params.isEmpty ? null : params);
-    final r = await http.get(uri, headers: _headers)
+    final r = await http
+        .get(uri, headers: _headers)
         .timeout(const Duration(seconds: 10));
     if (r.statusCode == 200) {
       final List<dynamic> d = jsonDecode(r.body);
@@ -1270,8 +1294,10 @@ class ApiService {
 
   static Future<int> fetchUnreadCount() async {
     final r = await http
-        .get(Uri.parse('$kBaseUrl/notifications/unread-count'),
-            headers: _headers)
+        .get(
+          Uri.parse('$kBaseUrl/notifications/unread-count'),
+          headers: _headers,
+        )
         .timeout(const Duration(seconds: 10));
     if (r.statusCode == 200) {
       return jsonDecode(r.body)['unread'] as int;
@@ -1307,7 +1333,8 @@ class ApiService {
     };
     final uri = Uri.parse('$kBaseUrl/requests')
         .replace(queryParameters: params.isEmpty ? null : params);
-    final r = await http.get(uri, headers: _headers)
+    final r = await http
+        .get(uri, headers: _headers)
         .timeout(const Duration(seconds: 10));
     if (r.statusCode == 200) {
       final List<dynamic> d = jsonDecode(r.body);
@@ -1323,14 +1350,16 @@ class ApiService {
     String? note,
   }) async {
     final r = await http
-        .post(Uri.parse('$kBaseUrl/requests'),
-            headers: _headers,
-            body: jsonEncode({
-              'crop_name': cropName,
-              'quantity_kg': quantityKg,
-              'max_price_per_kg': ?maxPricePerKg,
-              'note': ?note,
-            }))
+        .post(
+          Uri.parse('$kBaseUrl/requests'),
+          headers: _headers,
+          body: jsonEncode({
+            'crop_name': cropName,
+            'quantity_kg': quantityKg,
+            'max_price_per_kg': ?maxPricePerKg,
+            'note': ?note,
+          }),
+        )
         .timeout(const Duration(seconds: 10));
     if (r.statusCode == 201 || r.statusCode == 200) {
       return CropRequest.fromJson(jsonDecode(r.body));
@@ -1345,8 +1374,10 @@ class ApiService {
   /// The buyer sees every offer on their request; a farmer only their own.
   static Future<List<RequestOffer>> fetchOffers(int requestId) async {
     final r = await http
-        .get(Uri.parse('$kBaseUrl/requests/$requestId/offers'),
-            headers: _headers)
+        .get(
+          Uri.parse('$kBaseUrl/requests/$requestId/offers'),
+          headers: _headers,
+        )
         .timeout(const Duration(seconds: 10));
     if (r.statusCode == 200) {
       return (jsonDecode(r.body) as List)
@@ -1356,22 +1387,25 @@ class ApiService {
     throw Exception(_errorMessage(r));
   }
 
-  /// A farmer offers to supply a request from one of their kg listings.
+  /// A farmer offers to supply a request from one of their kg listings,
+  /// or from stock they never listed when [productId] is null.
   /// Leave [pricePerKg] null to use the listing's price.
   static Future<RequestOffer> createOffer(
     int requestId, {
-    required int productId,
+    int? productId,
     double? pricePerKg,
     String? note,
   }) async {
     final r = await http
-        .post(Uri.parse('$kBaseUrl/requests/$requestId/offers'),
-            headers: _headers,
-            body: jsonEncode({
-              'product_id': productId,
-              'price_per_kg': ?pricePerKg,
-              if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
-            }))
+        .post(
+          Uri.parse('$kBaseUrl/requests/$requestId/offers'),
+          headers: _headers,
+          body: jsonEncode({
+            'product_id': ?productId,
+            'price_per_kg': ?pricePerKg,
+            if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          }),
+        )
         .timeout(const Duration(seconds: 10));
     if (r.statusCode == 201) return RequestOffer.fromJson(jsonDecode(r.body));
     throw Exception(_errorMessage(r));
@@ -1380,9 +1414,9 @@ class ApiService {
   static Future<RequestOffer> withdrawOffer(int requestId, int offerId) async {
     final r = await http
         .post(
-            Uri.parse(
-                '$kBaseUrl/requests/$requestId/offers/$offerId/withdraw'),
-            headers: _headers)
+          Uri.parse('$kBaseUrl/requests/$requestId/offers/$offerId/withdraw'),
+          headers: _headers,
+        )
         .timeout(const Duration(seconds: 10));
     if (r.statusCode == 200) return RequestOffer.fromJson(jsonDecode(r.body));
     throw Exception(_errorMessage(r));
@@ -1392,8 +1426,9 @@ class ApiService {
   static Future<CropRequest> acceptOffer(int requestId, int offerId) async {
     final r = await http
         .post(
-            Uri.parse('$kBaseUrl/requests/$requestId/offers/$offerId/accept'),
-            headers: _headers)
+          Uri.parse('$kBaseUrl/requests/$requestId/offers/$offerId/accept'),
+          headers: _headers,
+        )
         .timeout(const Duration(seconds: 10));
     if (r.statusCode == 200) return CropRequest.fromJson(jsonDecode(r.body));
     throw Exception(_errorMessage(r));
@@ -1412,8 +1447,10 @@ class ApiService {
   /// GET /reports/sales - FR7, farmer only.
   static Future<SalesReport> fetchSalesReport({int months = 6}) async {
     final response = await http
-        .get(Uri.parse('$kBaseUrl/reports/sales?months=$months'),
-            headers: _headers)
+        .get(
+          Uri.parse('$kBaseUrl/reports/sales?months=$months'),
+          headers: _headers,
+        )
         .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
