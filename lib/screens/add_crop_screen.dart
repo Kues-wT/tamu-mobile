@@ -82,8 +82,21 @@ class _AddCropScreenState extends State<AddCropScreen> {
     'vegetable': '🥬 Vegetable',
     'fruit': '🍌 Fruit',
     'rice': '🌾 Rice / Grain',
-    'herb': '🌿 Herb',
   };
+
+  // Keeps an older listing's category (e.g. the removed "herb") selectable
+  // when it is edited, so the dropdown always contains the current value.
+  Map<String, String> get _categoryOptions {
+    final options = Map<String, String>.from(_categories);
+    final existingCategory = widget.existing?.category;
+    if (existingCategory != null &&
+        existingCategory.isNotEmpty &&
+        !options.containsKey(existingCategory)) {
+      options[existingCategory] =
+          '${existingCategory[0].toUpperCase()}${existingCategory.substring(1)} (existing)';
+    }
+    return options;
+  }
 
   @override
   void initState() {
@@ -527,7 +540,7 @@ class _AddCropScreenState extends State<AddCropScreen> {
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.category_outlined),
                     ),
-                    items: _categories.entries
+                    items: _categoryOptions.entries
                         .map(
                           (e) => DropdownMenuItem(
                             value: e.key,
