@@ -1,19 +1,30 @@
-// Basic smoke test for the TAMU app.
+// Sign-in screen (FR1).
 //
 // Run with:  flutter test
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:tamu_mobile/main.dart';
+import 'package:tamu_mobile/screens/login_screen.dart';
 
 void main() {
-  testWidgets('Login screen shows the TAMU branding',
+  testWidgets('sign-in screen shows the email and password fields',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const TamuApp());
+    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
 
-    expect(find.text('TAMU'), findsOneWidget);
-    expect(find.text('Farm Fresh. Direct to You.'), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Login'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('Email'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+  });
+
+  testWidgets('signing in with empty fields asks for email and password',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+
+    await tester.tap(find.text('Sign in'));
+    await tester.pump();
+
+    expect(find.text('Please enter your email and password'), findsOneWidget);
   });
 }
