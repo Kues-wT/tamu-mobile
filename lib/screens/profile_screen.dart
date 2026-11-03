@@ -781,7 +781,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Figma ".rating-empty". Ratings (FR9) are not built yet, so this is
+  /// Figma ".rating-empty". Ratings are future work (not in FR1 to FR9), so this is
   /// the honest state for every farmer for now.
   Widget _buildRatingEmpty() {
     return Container(
