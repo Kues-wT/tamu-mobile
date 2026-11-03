@@ -5,7 +5,8 @@ import 'package:flutter/services.dart';
 ///
 /// * Floor AR (Google Scene Viewer) needs Google ARCore, which only runs on
 ///   phones Google has certified. Many budget phones (e.g. Redmi 12) are not.
-/// * Other phones show the 3D view (rotate / zoom) without AR.
+/// * Other phones show the 3D view (rotate / zoom) and open the TAMU web AR
+///   page (A-Frame + 8th Wall, served at /webar) for AR in the browser.
 class ArSupport {
   static const _channel = MethodChannel('tamu/ar');
   static bool? _hasArCore;

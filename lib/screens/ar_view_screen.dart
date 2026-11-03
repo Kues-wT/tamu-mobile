@@ -14,7 +14,8 @@ import '../ar_support.dart';
 ///   * interactive 3D inspection (rotate, pinch to zoom) everywhere
 ///   * true augmented reality on ARCore devices, where the crop is
 ///     placed at real-world scale on the floor through the camera
-///   * phones without ARCore get the 3D view only (no AR button)
+///   * phones without ARCore get the 3D view plus a button that opens the
+///     TAMU web AR page (A-Frame + 8th Wall) in the browser
 class ArViewScreen extends StatefulWidget {
   final Product product;
   const ArViewScreen({super.key, required this.product});

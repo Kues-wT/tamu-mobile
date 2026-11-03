@@ -9,7 +9,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         // FR4: tells the app whether Google ARCore is installed, so it can
-        // choose floor AR (Scene Viewer) or the TAMU-card marker AR.
+        // choose floor AR (Scene Viewer) or the web AR page (/webar).
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "tamu/ar")
             .setMethodCallHandler { call, result ->
                 if (call.method == "hasArCore") {
