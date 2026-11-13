@@ -102,11 +102,14 @@ class ReceiptScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'Demo receipt for testing. No money was charged.',
+                Text(
+                  order.paymentMethod == 'toyyibpay'
+                      ? 'Paid through the ToyyibPay sandbox (test mode). '
+                          'No real money was charged.'
+                      : 'Demo receipt for testing. No money was charged.',
                   textAlign: TextAlign.center,
-                  style:
-                      TextStyle(fontSize: 11, color: TamuColors.textSecondary),
+                  style: const TextStyle(
+                      fontSize: 11, color: TamuColors.textSecondary),
                 ),
                 const SizedBox(height: 18),
                 ElevatedButton(
@@ -149,100 +152,6 @@ class ReceiptScreen extends StatelessWidget {
                     color: TamuColors.darkGreen)),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Bottom sheet shown before placing an "Online payment" order.
-/// Returns true when the buyer taps Pay (after a short processing step).
-class OnlinePaySheet extends StatefulWidget {
-  final double amount;
-  final String farmerName;
-
-  const OnlinePaySheet(
-      {super.key, required this.amount, required this.farmerName});
-
-  @override
-  State<OnlinePaySheet> createState() => _OnlinePaySheetState();
-}
-
-class _OnlinePaySheetState extends State<OnlinePaySheet> {
-  bool _processing = false;
-
-  Future<void> _pay() async {
-    setState(() => _processing = true);
-    // Simulated gateway delay; nothing is sent anywhere.
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (mounted) Navigator.of(context).pop(true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final amount = 'RM ${widget.amount.toStringAsFixed(2)}';
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.lock_outline, color: TamuColors.primary),
-                SizedBox(width: 8),
-                Text('Online payment',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text('Pay to ${widget.farmerName}',
-                style: const TextStyle(
-                    fontSize: 13, color: TamuColors.textSecondary)),
-            const SizedBox(height: 4),
-            Text(amount,
-                style: GoogleFonts.poppins(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w700,
-                    color: TamuColors.darkGreen)),
-            const SizedBox(height: 6),
-            const Text('Mock payment',
-                style:
-                    TextStyle(fontSize: 11, color: TamuColors.textSecondary)),
-            const SizedBox(height: 18),
-            ElevatedButton(
-              onPressed: _processing ? null : _pay,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(52),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15)),
-                textStyle: GoogleFonts.poppins(
-                    fontSize: 15, fontWeight: FontWeight.w700),
-              ),
-              child: _processing
-                  ? const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        ),
-                        SizedBox(width: 10),
-                        Text('Processing payment...'),
-                      ],
-                    )
-                  : Text('Pay now · $amount'),
-            ),
-            TextButton(
-              onPressed:
-                  _processing ? null : () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
       ),
     );
   }

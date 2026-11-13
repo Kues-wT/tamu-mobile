@@ -233,9 +233,12 @@ class Order {
   final double? deliveryLatitude; // optional delivery map pin
   final double? deliveryLongitude;
   final String? pickupPoint; // farmer's public point when ordered
-  final String paymentMethod; // pay_on_handover | mock_online (demo only)
-  final String? paymentRef; // demo online-payment receipt number
+  // pay_on_handover | toyyibpay (ToyyibPay sandbox) | mock_online (old demo)
+  final String paymentMethod;
+  final String paymentStatus; // FR9: pending | paid | refunded | cancelled
+  final String? paymentRef; // receipt / payment reference number
   final DateTime? paidAt;
+  final String? paymentUrl; // ToyyibPay page, while an online order is unpaid
   final String? cancelReason; // why it was cancelled, if it was
   final String? cancelledBy; // buyer | farmer | system | admin
 
@@ -258,8 +261,10 @@ class Order {
     this.deliveryLongitude,
     this.pickupPoint,
     this.paymentMethod = 'pay_on_handover',
+    this.paymentStatus = 'pending',
     this.paymentRef,
     this.paidAt,
+    this.paymentUrl,
     this.cancelReason,
     this.cancelledBy,
   });
@@ -280,7 +285,21 @@ class Order {
             (hasDeliveryPin ? 'Pinned on map' : 'Address not given'))
       : (pickupPoint ?? "Farmer's public pickup point");
 
-  String get paymentLabel => paymentMethod == 'mock_online'
+  /// Online order still waiting for the buyer to pay on ToyyibPay.
+  bool get awaitingPayment =>
+      paymentMethod == 'toyyibpay' &&
+      paymentStatus == 'pending' &&
+      status == 'pending' &&
+      paymentUrl != null;
+
+  String get paymentLabel => paymentMethod == 'toyyibpay'
+      ? switch (paymentStatus) {
+          'paid' => 'Online payment (FPX) · Paid',
+          'refunded' => 'Online payment (FPX) · Refunded',
+          'cancelled' => 'Online payment (FPX) · Not paid',
+          _ => 'Online payment (FPX) · Awaiting payment',
+        }
+      : paymentMethod == 'mock_online'
       ? (hasReceipt ? 'Online payment · Paid' : 'Online payment')
       : (isDelivery ? 'Pay on delivery' : 'Pay on pickup');
 
@@ -303,7 +322,9 @@ class Order {
     deliveryLongitude: (json['delivery_longitude'] as num?)?.toDouble(),
     pickupPoint: json['pickup_point'] as String?,
     paymentMethod: json['payment_method'] as String? ?? 'pay_on_handover',
+    paymentStatus: json['payment_status'] as String? ?? 'pending',
     paymentRef: json['payment_ref'] as String?,
+    paymentUrl: json['payment_url'] as String?,
     paidAt: json['paid_at'] == null
         ? null
         : parseServerTime(json['paid_at'] as String),
@@ -1108,7 +1129,7 @@ class ApiService {
             'payment_method': paymentMethod,
           }),
         )
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 30));
 
     if (response.statusCode == 201 || response.statusCode == 200) {
       return Order.fromJson(jsonDecode(response.body));
@@ -1117,6 +1138,20 @@ class ApiService {
   }
 
   /// PATCH /orders/{id}/status - confirmed | completed | cancelled
+  /// FR9: asks the server to check this order's ToyyibPay bill.
+  static Future<Order> checkPayment(int orderId) async {
+    final response = await http
+        .post(
+          Uri.parse('$kBaseUrl/orders/$orderId/payment/check'),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode == 200) {
+      return Order.fromJson(jsonDecode(response.body));
+    }
+    throw Exception(_errorMessage(response));
+  }
+
   static Future<Order> updateOrderStatus({
     required int orderId,
     required String status,

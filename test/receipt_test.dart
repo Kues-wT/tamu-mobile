@@ -1,4 +1,4 @@
-// Online payment step and receipt (FR5).
+// Online payment (ToyyibPay sandbox) and receipt (FR9).
 //
 // Run with:  flutter test test/receipt_test.dart
 
@@ -6,9 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tamu_mobile/api_service.dart';
+import 'package:tamu_mobile/screens/payment_screen.dart';
 import 'package:tamu_mobile/screens/receipt_screen.dart';
 
-Order _paidOrder({String status = 'pending'}) => Order(
+Order _paidOrder({String status = 'pending', String method = 'toyyibpay'}) => Order(
       id: 7,
       productId: 3,
       buyerId: 2,
@@ -19,22 +20,39 @@ Order _paidOrder({String status = 'pending'}) => Order(
       createdAt: DateTime(2026, 11, 1, 14, 30),
       productName: 'Kelapa',
       farmerName: 'Puan Siti',
-      paymentMethod: 'mock_online',
-      paymentRef: 'PAY-261101-A1B2C3',
+      paymentMethod: method,
+      paymentStatus: status == 'cancelled' ? 'refunded' : 'paid',
+      paymentRef: 'TP2611010001',
       paidAt: DateTime(2026, 11, 1, 14, 31),
     );
 
+Order _unpaidOrder() => Order(
+      id: 8,
+      productId: 3,
+      buyerId: 2,
+      buyerName: 'Hermione',
+      quantity: 2,
+      totalPrice: 10.0,
+      status: 'pending',
+      createdAt: DateTime(2026, 11, 1, 14, 30),
+      productName: 'Kelapa',
+      paymentMethod: 'toyyibpay',
+      paymentStatus: 'pending',
+      paymentUrl: 'https://dev.toyyibpay.com/abc123',
+    );
+
 void main() {
-  testWidgets('receipt shows the amount, receipt number and farmer',
+  testWidgets('receipt shows the amount, reference number and farmer',
       (tester) async {
     await tester.pumpWidget(MaterialApp(home: ReceiptScreen(order: _paidOrder())));
 
     expect(find.text('Payment successful'), findsOneWidget);
     expect(find.text('RM 18.00'), findsOneWidget);
-    expect(find.text('PAY-261101-A1B2C3'), findsOneWidget);
+    expect(find.text('TP2611010001'), findsOneWidget);
     expect(find.text('Puan Siti'), findsOneWidget);
     expect(find.text('#TAMU-0007'), findsOneWidget);
     expect(find.text('Paid'), findsOneWidget);
+    expect(find.textContaining('ToyyibPay sandbox'), findsOneWidget);
   });
 
   testWidgets('a cancelled paid order shows as refunded', (tester) async {
@@ -46,59 +64,23 @@ void main() {
     expect(find.text('Refunded'), findsOneWidget);
   });
 
-  testWidgets('pay sheet processes the payment and closes with success',
+  testWidgets('payment screen shows the amount and the payment buttons',
       (tester) async {
-    bool? result;
     await tester.pumpWidget(MaterialApp(
-      home: Builder(
-        builder: (context) => ElevatedButton(
-          onPressed: () async {
-            result = await showModalBottomSheet<bool>(
-              context: context,
-              builder: (_) =>
-                  const OnlinePaySheet(amount: 18, farmerName: 'Puan Siti'),
-            );
-          },
-          child: const Text('Open'),
-        ),
-      ),
+      home: PaymentScreen(order: _unpaidOrder(), openOnStart: false),
     ));
 
-    await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-    expect(find.text('Pay to Puan Siti'), findsOneWidget);
-    expect(find.text('Mock payment'), findsOneWidget);
-
-    await tester.tap(find.text('Pay now · RM 18.00'));
-    await tester.pump();
-    expect(find.text('Processing payment...'), findsOneWidget);
-
-    await tester.pump(const Duration(milliseconds: 1600));
-    await tester.pumpAndSettle();
-    expect(result, isTrue);
+    expect(find.text('RM 10.00'), findsOneWidget);
+    expect(find.text('Open payment page'), findsOneWidget);
+    expect(find.text("I've paid, check status"), findsOneWidget);
+    expect(find.text('Cancel order'), findsOneWidget);
+    expect(find.textContaining('No real money'), findsOneWidget);
   });
 
-  testWidgets('cancelling the pay sheet does not pay', (tester) async {
-    bool? result = true;
-    await tester.pumpWidget(MaterialApp(
-      home: Builder(
-        builder: (context) => ElevatedButton(
-          onPressed: () async {
-            result = await showModalBottomSheet<bool>(
-              context: context,
-              builder: (_) =>
-                  const OnlinePaySheet(amount: 18, farmerName: 'Puan Siti'),
-            );
-          },
-          child: const Text('Open'),
-        ),
-      ),
-    ));
-
-    await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    expect(result, isFalse);
+  testWidgets('an unpaid online order is waiting for payment', (tester) async {
+    final order = _unpaidOrder();
+    expect(order.awaitingPayment, isTrue);
+    expect(order.paymentLabel, 'Online payment (FPX) · Awaiting payment');
+    expect(order.hasReceipt, isFalse);
   });
 }

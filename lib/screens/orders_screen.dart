@@ -13,6 +13,7 @@ import 'notifications_screen.dart' as notifications;
 import 'login_screen.dart' as login;
 import 'location_picker_screen.dart' as location_picker;
 import 'receipt_screen.dart';
+import 'payment_screen.dart';
 
 /// Orders list.
 /// Farmers see orders RECEIVED for their crops, with Accept / Reject.
@@ -471,6 +472,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 ),
               ],
             ),
+            if (order.awaitingPayment) ...[
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PaymentScreen(order: order),
+                    ),
+                  );
+                  _refresh();
+                },
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(46),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.account_balance_outlined, size: 18),
+                label: const Text('Complete payment'),
+              ),
+            ],
             if (order.status == 'confirmed') ...[
               const SizedBox(height: 10),
               Container(
@@ -961,6 +983,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
 
     if (order.status == 'cancelled') return [_buildCancelNote(order)];
+    // FR9: an online order can be confirmed only after the buyer pays.
+    if (order.awaitingPayment) {
+      return [
+        const Text(
+          "Waiting for the buyer's online payment. You can confirm the "
+          'order once it is paid.',
+          style: TextStyle(fontSize: 12, color: TamuColors.amber),
+        ),
+      ];
+    }
     if (order.status == 'pending') {
       return [
         Row(

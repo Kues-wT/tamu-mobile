@@ -81,6 +81,22 @@ void main() {
       expect(order.paymentLabel, 'Online payment · Paid');
     });
 
+    test('ToyyibPay payment labels follow the payment status', () {
+      Order online(String status, {String? url}) => Order.fromJson({
+            ..._orderJson(payment: 'toyyibpay'),
+            'payment_status': status,
+            'payment_url': url,
+          });
+      expect(online('pending', url: 'https://dev.toyyibpay.com/x').paymentLabel,
+          'Online payment (FPX) · Awaiting payment');
+      expect(online('paid').paymentLabel, 'Online payment (FPX) · Paid');
+      expect(online('refunded').paymentLabel, 'Online payment (FPX) · Refunded');
+      expect(online('cancelled').paymentLabel, 'Online payment (FPX) · Not paid');
+      expect(online('pending', url: 'https://dev.toyyibpay.com/x').awaitingPayment,
+          isTrue);
+      expect(online('paid').awaitingPayment, isFalse);
+    });
+
     test('pay on pickup has no receipt', () {
       expect(Order.fromJson(_orderJson()).hasReceipt, isFalse);
     });

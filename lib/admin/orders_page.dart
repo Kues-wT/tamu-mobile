@@ -134,7 +134,9 @@ class _OrdersPageState extends State<OrdersPage> {
                     ),
                     CellText(
                       o.fulfilmentMethod == 'delivery' ? 'Delivery' : 'Pickup',
-                      sub: o.paymentMethod == 'mock_online'
+                      sub: o.paymentMethod == 'toyyibpay'
+                          ? 'Online (ToyyibPay)'
+                          : o.paymentMethod == 'mock_online'
                           ? 'Online payment'
                           : 'Pay on handover',
                     ),

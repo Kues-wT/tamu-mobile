@@ -7,7 +7,7 @@ import '../api_service.dart';
 import '../widgets/crop_photo.dart';
 import 'location_picker_screen.dart';
 import 'order_placed_screen.dart';
-import 'receipt_screen.dart';
+import 'payment_screen.dart';
 
 /// FR5 Review order / checkout (Figma "Checkout").
 /// The buyer picks pickup or delivery and a DEMO payment option.
@@ -80,19 +80,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
-    if (_payment == 'mock_online') {
-      final paid = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (_) =>
-            OnlinePaySheet(amount: _total, farmerName: p.farmerName),
-      );
-      if (paid != true || !mounted) return;
-    }
-
     setState(() => _placing = true);
     try {
       final order = await ApiService.createOrder(
@@ -107,8 +94,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (!mounted) return;
       // Clear Product Detail + Checkout so "back" from the confirmation
       // returns to the marketplace, not to a stale checkout.
+      // Online payment goes to the ToyyibPay page first.
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => OrderPlacedScreen(order: order)),
+        MaterialPageRoute(
+          builder: (_) => order.awaitingPayment
+              ? PaymentScreen(order: order)
+              : OrderPlacedScreen(order: order),
+        ),
         (route) => route.isFirst,
       );
     } catch (e) {
@@ -215,7 +207,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     'farmer; this demo adds no fee.',
                   ),
                 ],
-                _sectionTitle('Demo payment method'),
+                _sectionTitle('Payment method'),
                 _choice(
                   selected: _payment == 'pay_on_handover',
                   icon: Icons.payments_outlined,
@@ -226,11 +218,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   onTap: () => setState(() => _payment = 'pay_on_handover'),
                 ),
                 _choice(
-                  selected: _payment == 'mock_online',
-                  icon: Icons.lock_outline,
-                  title: 'Online payment',
-                  detail: 'Mock payment',
-                  onTap: () => setState(() => _payment = 'mock_online'),
+                  selected: _payment == 'toyyibpay',
+                  icon: Icons.account_balance_outlined,
+                  title: 'Online payment (FPX)',
+                  detail: 'ToyyibPay sandbox · test bank, no real money',
+                  onTap: () => setState(() => _payment = 'toyyibpay'),
                 ),
                 const SizedBox(height: 14),
                 _buildTotals(),
@@ -256,7 +248,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : Text(_payment == 'mock_online'
+                      : Text(_payment == 'toyyibpay'
                           ? 'Continue to payment'
                           : 'Place order'),
                 ),
