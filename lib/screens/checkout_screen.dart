@@ -94,7 +94,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (!mounted) return;
       // Clear Product Detail + Checkout so "back" from the confirmation
       // returns to the marketplace, not to a stale checkout.
-      // Online payment goes to the ToyyibPay page first.
+      // Online payment goes to the Stripe page first.
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => order.awaitingPayment
@@ -218,11 +218,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   onTap: () => setState(() => _payment = 'pay_on_handover'),
                 ),
                 _choice(
-                  selected: _payment == 'toyyibpay',
-                  icon: Icons.account_balance_outlined,
-                  title: 'Online payment (FPX)',
-                  detail: 'ToyyibPay sandbox · test bank, no real money',
-                  onTap: () => setState(() => _payment = 'toyyibpay'),
+                  selected: _payment == 'stripe',
+                  icon: Icons.credit_card,
+                  title: 'Online payment',
+                  detail: 'Simulated payment',
+                  onTap: () => setState(() => _payment = 'stripe'),
                 ),
                 const SizedBox(height: 14),
                 _buildTotals(),
@@ -248,7 +248,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : Text(_payment == 'toyyibpay'
+                      : Text(_payment == 'stripe'
                           ? 'Continue to payment'
                           : 'Place order'),
                 ),

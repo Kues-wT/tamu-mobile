@@ -489,7 +489,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                icon: const Icon(Icons.account_balance_outlined, size: 18),
+                icon: const Icon(Icons.credit_card, size: 18),
                 label: const Text('Complete payment'),
               ),
             ],

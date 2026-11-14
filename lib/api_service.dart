@@ -233,12 +233,12 @@ class Order {
   final double? deliveryLatitude; // optional delivery map pin
   final double? deliveryLongitude;
   final String? pickupPoint; // farmer's public point when ordered
-  // pay_on_handover | toyyibpay (ToyyibPay sandbox) | mock_online (old demo)
+  // pay_on_handover | stripe (Stripe test mode) | mock_online (old demo)
   final String paymentMethod;
   final String paymentStatus; // FR9: pending | paid | refunded | cancelled
   final String? paymentRef; // receipt / payment reference number
   final DateTime? paidAt;
-  final String? paymentUrl; // ToyyibPay page, while an online order is unpaid
+  final String? paymentUrl; // Stripe page, while an online order is unpaid
   final String? cancelReason; // why it was cancelled, if it was
   final String? cancelledBy; // buyer | farmer | system | admin
 
@@ -285,19 +285,19 @@ class Order {
             (hasDeliveryPin ? 'Pinned on map' : 'Address not given'))
       : (pickupPoint ?? "Farmer's public pickup point");
 
-  /// Online order still waiting for the buyer to pay on ToyyibPay.
+  /// Online order still waiting for the buyer to pay on Stripe.
   bool get awaitingPayment =>
-      paymentMethod == 'toyyibpay' &&
+      paymentMethod == 'stripe' &&
       paymentStatus == 'pending' &&
       status == 'pending' &&
       paymentUrl != null;
 
-  String get paymentLabel => paymentMethod == 'toyyibpay'
+  String get paymentLabel => paymentMethod == 'stripe'
       ? switch (paymentStatus) {
-          'paid' => 'Online payment (FPX) · Paid',
-          'refunded' => 'Online payment (FPX) · Refunded',
-          'cancelled' => 'Online payment (FPX) · Not paid',
-          _ => 'Online payment (FPX) · Awaiting payment',
+          'paid' => 'Online payment · Paid',
+          'refunded' => 'Online payment · Refunded',
+          'cancelled' => 'Online payment · Not paid',
+          _ => 'Online payment · Awaiting payment',
         }
       : paymentMethod == 'mock_online'
       ? (hasReceipt ? 'Online payment · Paid' : 'Online payment')
@@ -1138,7 +1138,7 @@ class ApiService {
   }
 
   /// PATCH /orders/{id}/status - confirmed | completed | cancelled
-  /// FR9: asks the server to check this order's ToyyibPay bill.
+  /// FR9: asks the server to check this order's Stripe payment.
   static Future<Order> checkPayment(int orderId) async {
     final response = await http
         .post(

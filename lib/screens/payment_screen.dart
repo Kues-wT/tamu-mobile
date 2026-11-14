@@ -7,10 +7,10 @@ import '../theme.dart';
 import '../api_service.dart';
 import 'order_placed_screen.dart';
 
-/// FR9 online payment through the ToyyibPay sandbox (FPX bank simulator).
+/// FR9 online payment through Stripe Checkout in test mode (simulated).
 ///
-/// Opens the ToyyibPay bill page in the browser. When the buyer comes back
-/// to the app, it asks the server whether the bill is paid; once it is, the
+/// Opens the Stripe payment page in the browser. When the buyer comes back
+/// to the app, it asks the server whether it is paid; once it is, the
 /// order is placed and the farmer is told.
 class PaymentScreen extends StatefulWidget {
   final Order order;
@@ -87,7 +87,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         _checking = false;
         _message = order.status == 'cancelled'
             ? 'This order was cancelled because it was not paid in time.'
-            : 'Payment not received yet. Finish paying on the ToyyibPay '
+            : 'Payment not received yet. Finish paying on the payment '
                 'page, then check again.';
       });
     } catch (e) {
@@ -131,7 +131,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             child: ListView(
               padding: const EdgeInsets.fromLTRB(22, 10, 22, 30),
               children: [
-                const Icon(Icons.account_balance_outlined,
+                const Icon(Icons.credit_card,
                     size: 52, color: TamuColors.primary),
                 const SizedBox(height: 10),
                 Text(
@@ -151,14 +151,15 @@ class _PaymentScreenState extends State<PaymentScreen>
                 ),
                 const SizedBox(height: 18),
                 const Text(
-                  'Pay with FPX online banking on the ToyyibPay page. '
+                  'Pay by card on the secure Stripe page. '
                   'Come back to this app when you are done.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 14, height: 1.4),
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'ToyyibPay sandbox (test mode): choose the test bank. '
+                  'Simulated payment (Stripe test mode): use the test card '
+                  '4242 4242 4242 4242, any future date and any CVC. '
                   'No real money is charged.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 11, color: TamuColors.textSecondary),

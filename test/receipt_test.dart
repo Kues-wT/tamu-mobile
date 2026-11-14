@@ -1,4 +1,4 @@
-// Online payment (ToyyibPay sandbox) and receipt (FR9).
+// Online payment (Stripe test mode) and receipt (FR9).
 //
 // Run with:  flutter test test/receipt_test.dart
 
@@ -9,7 +9,7 @@ import 'package:tamu_mobile/api_service.dart';
 import 'package:tamu_mobile/screens/payment_screen.dart';
 import 'package:tamu_mobile/screens/receipt_screen.dart';
 
-Order _paidOrder({String status = 'pending', String method = 'toyyibpay'}) => Order(
+Order _paidOrder({String status = 'pending', String method = 'stripe'}) => Order(
       id: 7,
       productId: 3,
       buyerId: 2,
@@ -22,7 +22,7 @@ Order _paidOrder({String status = 'pending', String method = 'toyyibpay'}) => Or
       farmerName: 'Puan Siti',
       paymentMethod: method,
       paymentStatus: status == 'cancelled' ? 'refunded' : 'paid',
-      paymentRef: 'TP2611010001',
+      paymentRef: 'pi_3QxTest01',
       paidAt: DateTime(2026, 11, 1, 14, 31),
     );
 
@@ -36,9 +36,9 @@ Order _unpaidOrder() => Order(
       status: 'pending',
       createdAt: DateTime(2026, 11, 1, 14, 30),
       productName: 'Kelapa',
-      paymentMethod: 'toyyibpay',
+      paymentMethod: 'stripe',
       paymentStatus: 'pending',
-      paymentUrl: 'https://dev.toyyibpay.com/abc123',
+      paymentUrl: 'https://checkout.stripe.com/c/pay/cs_test_abc',
     );
 
 void main() {
@@ -48,11 +48,11 @@ void main() {
 
     expect(find.text('Payment successful'), findsOneWidget);
     expect(find.text('RM 18.00'), findsOneWidget);
-    expect(find.text('TP2611010001'), findsOneWidget);
+    expect(find.text('pi_3QxTest01'), findsOneWidget);
     expect(find.text('Puan Siti'), findsOneWidget);
     expect(find.text('#TAMU-0007'), findsOneWidget);
     expect(find.text('Paid'), findsOneWidget);
-    expect(find.textContaining('ToyyibPay sandbox'), findsOneWidget);
+    expect(find.textContaining('Simulated payment through Stripe'), findsOneWidget);
   });
 
   testWidgets('a cancelled paid order shows as refunded', (tester) async {
@@ -80,7 +80,7 @@ void main() {
   testWidgets('an unpaid online order is waiting for payment', (tester) async {
     final order = _unpaidOrder();
     expect(order.awaitingPayment, isTrue);
-    expect(order.paymentLabel, 'Online payment (FPX) · Awaiting payment');
+    expect(order.paymentLabel, 'Online payment · Awaiting payment');
     expect(order.hasReceipt, isFalse);
   });
 }

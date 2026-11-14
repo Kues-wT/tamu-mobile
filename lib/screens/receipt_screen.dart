@@ -103,8 +103,8 @@ class ReceiptScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  order.paymentMethod == 'toyyibpay'
-                      ? 'Paid through the ToyyibPay sandbox (test mode). '
+                  order.paymentMethod == 'stripe'
+                      ? 'Simulated payment through Stripe (test mode). '
                           'No real money was charged.'
                       : 'Demo receipt for testing. No money was charged.',
                   textAlign: TextAlign.center,
