@@ -5,6 +5,7 @@ import '../api_service.dart';
 import '../widgets/crop_photo.dart';
 import '../theme.dart';
 import '../widgets/farmer_bottom_nav.dart';
+import '../widgets/number_stepper.dart';
 import 'add_crop_screen.dart' as add_crop;
 
 /// Farmer's own listings, separated from the dashboard to match the Figma tab.
@@ -248,6 +249,111 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
     );
   }
 
+  /// Quick stock change with big - and + buttons, without opening the full
+  /// edit form (examiner feedback: farmers should not have to type).
+  Future<void> _updateStock(Product product) async {
+    var stock = product.stockQuantity;
+    final saved = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          void change(int delta) =>
+              setSheet(() => stock = (stock + delta).clamp(0, 99999));
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Update stock: ${product.name}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      StepButton(
+                        icon: Icons.remove,
+                        tooltip: 'Decrease',
+                        size: 64,
+                        onPressed: stock > 0 ? () => change(-1) : null,
+                      ),
+                      SizedBox(
+                        width: 130,
+                        child: Text(
+                          formatUnitQuantity(stock, product.unit),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      StepButton(
+                        icon: Icons.add,
+                        tooltip: 'Increase',
+                        size: 64,
+                        onPressed: () => change(1),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final n in const [5, 10])
+                        ActionChip(
+                          label: Text('+$n'),
+                          onPressed: () => change(n),
+                        ),
+                      ActionChip(
+                        label: const Text('Sold out (0)'),
+                        onPressed: () => setSheet(() => stock = 0),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(ctx).pop(stock),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52)),
+                      child: const Text('Save stock'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (saved == null || saved == product.stockQuantity || !mounted) return;
+    try {
+      // The availability dates are sent back unchanged so they are kept.
+      await ApiService.updateProduct(
+        id: product.id,
+        stockQuantity: saved,
+        availableFrom: product.availableFrom,
+        availableUntil: product.availableUntil,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: TamuColors.primary,
+        content: Text(
+            'Stock updated: ${formatUnitQuantity(saved, product.unit)}'),
+      ));
+      setState(() => _productsFuture = ApiService.fetchMyProducts());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: TamuColors.danger,
+        content: Text(e.toString().replaceFirst('Exception: ', '')),
+      ));
+    }
+  }
+
   Widget _buildListingCard(Product product) {
     final ended = _isEnded(product);
     final availability = product.availableUntil == null
@@ -318,13 +424,20 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
                   : product.stockQuantity <= 0
                       ? 'Sold out'
                       : 'Active'),
+              IconButton(
+                tooltip: tr('Update stock'),
+                onPressed: () => _updateStock(product),
+                icon: const Icon(Icons.exposure, color: TamuColors.primary),
+              ),
               PopupMenuButton<String>(
                 tooltip: tr('Listing actions'),
                 onSelected: (value) {
+                  if (value == 'stock') _updateStock(product);
                   if (value == 'edit') _openCrop(existing: product);
                   if (value == 'delete') _delete(product);
                 },
                 itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'stock', child: Text('Update stock')),
                   PopupMenuItem(value: 'edit', child: Text('Edit listing')),
                   PopupMenuItem(value: 'delete', child: Text('Delete listing')),
                 ],

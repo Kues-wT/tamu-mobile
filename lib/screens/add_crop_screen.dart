@@ -7,6 +7,7 @@ import '../widgets/skeleton.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../theme.dart';
+import '../widgets/number_stepper.dart';
 import '../api_service.dart';
 import '../widgets/crop_photo.dart';
 import 'crop_model_picker_screen.dart';
@@ -594,48 +595,56 @@ class _AddCropScreenState extends State<AddCropScreen> {
                   const SizedBox(height: TamuSizes.gap),
 
                   _label('Price per $_unit (RM)'),
-                  TextFormField(
+                  NumberStepperField(
                     controller: _priceController,
-                    style: const TextStyle(fontSize: 16),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                    step: 0.5,
+                    decimals: 2,
+                    field: TextFormField(
+                      controller: _priceController,
+                      style: const TextStyle(fontSize: 16),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: tr('e.g. 3.50'),
+                        prefixText: 'RM ',
+                      ),
+                      validator: trValidator((v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Please enter a price';
+                        }
+                        final n = double.tryParse(v.trim());
+                        if (n == null) return 'Numbers only, e.g. 3.50';
+                        if (n <= 0) return 'Price must be more than 0';
+                        return null;
+                      }),
                     ),
-                    decoration: InputDecoration(
-                      hintText: tr('e.g. 3.50'),
-                      prefixText: 'RM ',
-                      prefixIcon: Icon(Icons.payments_outlined),
-                    ),
-                    validator: trValidator((v) {
-                      if (v == null || v.trim().isEmpty) {
-                        return 'Please enter a price';
-                      }
-                      final n = double.tryParse(v.trim());
-                      if (n == null) return 'Numbers only, e.g. 3.50';
-                      if (n <= 0) return 'Price must be more than 0';
-                      return null;
-                    }),
                   ),
                   const SizedBox(height: TamuSizes.gap),
 
                   _label('Stock available ($_unitPlural)'),
-                  TextFormField(
+                  NumberStepperField(
                     controller: _stockController,
-                    style: const TextStyle(fontSize: 16),
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: tr('e.g. 20'),
-                      suffixText: tr(_unitPlural),
-                      prefixIcon: Icon(Icons.inventory_2_outlined),
+                    step: 1,
+                    decimals: 0,
+                    field: TextFormField(
+                      controller: _stockController,
+                      style: const TextStyle(fontSize: 16),
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: tr('e.g. 20'),
+                        suffixText: tr(_unitPlural),
+                      ),
+                      validator: trValidator((v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Please enter the stock quantity';
+                        }
+                        final n = int.tryParse(v.trim());
+                        if (n == null) return 'Whole numbers only, e.g. 20';
+                        if (n < 0) return 'Stock cannot be negative';
+                        return null;
+                      }),
                     ),
-                    validator: trValidator((v) {
-                      if (v == null || v.trim().isEmpty) {
-                        return 'Please enter the stock quantity';
-                      }
-                      final n = int.tryParse(v.trim());
-                      if (n == null) return 'Whole numbers only, e.g. 20';
-                      if (n < 0) return 'Stock cannot be negative';
-                      return null;
-                    }),
                   ),
                   const SizedBox(height: TamuSizes.gap),
                   _label('Crop Availability (optional)'),
