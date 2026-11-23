@@ -4,6 +4,7 @@ import '../widgets/skeleton.dart';
 import '../theme.dart';
 import '../api_service.dart';
 import '../widgets/crop_photo.dart';
+import '../widgets/badge_ticker.dart';
 import 'product_detail_screen.dart';
 import 'orders_screen.dart' as orders;
 import 'nearby_farms_screen.dart';
@@ -30,11 +31,34 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
 
   static const _categories = ['All', 'vegetable', 'fruit', 'rice'];
 
+  late final BadgeTicker _ticker = BadgeTicker(_tickBadges);
+  Badges? _lastBadges;
+
   @override
   void initState() {
     super.initState();
     _productsFuture = _load();
-    _badgesFuture = ApiService.fetchBadges();
+    _badgesFuture = ApiService.fetchBadges().then((b) => _lastBadges = b);
+    _ticker.start();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  /// FR8: every 30 s while this screen is showing, refresh the badges.
+  void _tickBadges() {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    final last = _lastBadges;
+    setState(() {
+      _badgesFuture = ApiService.fetchBadges().then((b) {
+        _lastBadges = b;
+        return b;
+        // A network blip keeps the last counts instead of showing 0.
+      }, onError: (_) => last ?? const Badges());
+    });
   }
 
   /// Always asks the backend for distances, measured from the buyer's

@@ -6,6 +6,7 @@ import '../widgets/skeleton.dart';
 import '../api_service.dart';
 import '../theme.dart';
 import '../widgets/farmer_bottom_nav.dart';
+import '../widgets/badge_ticker.dart';
 import 'add_crop_screen.dart' as add_crop;
 import 'notifications_screen.dart' as notifications;
 import 'requests_screen.dart' as requests;
@@ -23,15 +24,42 @@ class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
   late Future<Badges> _badgesFuture;
   late Future<SalesReport> _salesFuture;
   late Future<List<Order>> _attentionOrdersFuture;
+  late final BadgeTicker _ticker = BadgeTicker(_tickBadges);
+  Badges? _lastBadges;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _ticker.start();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  /// FR8: every 30 s while this screen is showing, refresh the badges. A
+  /// new pending order also refreshes the "Needs your attention" list.
+  void _tickBadges() {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    final last = _lastBadges;
+    setState(() {
+      _badgesFuture = ApiService.fetchBadges().then((b) {
+        if (mounted && last != null && b.pendingOrders != last.pendingOrders) {
+          setState(() => _attentionOrdersFuture =
+              ApiService.fetchOrders(status: 'pending'));
+        }
+        _lastBadges = b;
+        return b;
+        // A network blip keeps the last counts instead of showing 0.
+      }, onError: (_) => last ?? const Badges());
+    });
   }
 
   void _load() {
-    _badgesFuture = ApiService.fetchBadges();
+    _badgesFuture = ApiService.fetchBadges().then((b) => _lastBadges = b);
     _salesFuture = ApiService.fetchSalesReport(months: 6);
     _attentionOrdersFuture = ApiService.fetchOrders(status: 'pending');
   }
