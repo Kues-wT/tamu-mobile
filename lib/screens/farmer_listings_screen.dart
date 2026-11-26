@@ -249,24 +249,90 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
     );
   }
 
-  /// Quick stock change with big - and + buttons, without opening the full
-  /// edit form (examiner feedback: farmers should not have to type).
+  /// Quick stock and availability-date change, without opening the full
+  /// edit form (examiner feedback: farmers should not have to type or dig).
+  /// The same fields can still be changed in Edit listing.
   Future<void> _updateStock(Product product) async {
     var stock = product.stockQuantity;
-    final saved = await showModalBottomSheet<int>(
+    DateTime? from = product.availableFrom;
+    DateTime? until = product.availableUntil;
+    String? error;
+    final saved = await showModalBottomSheet<(int, DateTime?, DateTime?)>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
           void change(int delta) =>
               setSheet(() => stock = (stock + delta).clamp(0, 99999));
+
+          Future<void> pickDate({required bool isFrom}) async {
+            final today = DateUtils.dateOnly(DateTime.now());
+            var initial = (isFrom ? from : until) ?? today;
+            if (initial.isBefore(today)) initial = today;
+            final picked = await showDatePicker(
+              context: ctx,
+              initialDate: initial,
+              firstDate: today,
+              lastDate: DateTime(today.year + 5),
+              helpText: tr(isFrom
+                  ? 'When will this crop be available?'
+                  : 'Last day this crop is available'),
+            );
+            if (picked == null) return;
+            setSheet(() {
+              error = null;
+              if (isFrom) {
+                from = DateUtils.dateOnly(picked);
+              } else {
+                until = DateUtils.dateOnly(picked);
+              }
+            });
+          }
+
+          Widget dateTile({required bool isFrom}) {
+            final value = isFrom ? from : until;
+            return Expanded(
+              child: OutlinedButton(
+                onPressed: () => pickDate(isFrom: isFrom),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 10),
+                  alignment: Alignment.centerLeft,
+                  side: BorderSide(
+                    color: value == null
+                        ? TamuColors.border
+                        : TamuColors.primary,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(isFrom ? 'Available from' : 'Available until',
+                        style: const TextStyle(
+                            fontSize: 11, color: TamuColors.textSecondary)),
+                    const SizedBox(height: 2),
+                    Text(
+                      value == null
+                          ? 'Choose date'
+                          : MaterialLocalizations.of(ctx)
+                              .formatMediumDate(value),
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           return SafeArea(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Update stock: ${product.name}',
+                  Text('Stock and dates: ${product.name}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                           fontSize: 17, fontWeight: FontWeight.w700)),
@@ -313,13 +379,56 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
                     ],
                   ),
                   const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      dateTile(isFrom: true),
+                      const SizedBox(width: 8),
+                      dateTile(isFrom: false),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          error ?? 'Leave the dates empty if the crop is '
+                              'available now with no end date.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: error == null
+                                ? TamuColors.textSecondary
+                                : TamuColors.danger,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: from == null && until == null
+                            ? null
+                            : () => setSheet(() {
+                                  from = null;
+                                  until = null;
+                                  error = null;
+                                }),
+                        child: const Text('Clear dates'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.of(ctx).pop(stock),
+                      onPressed: () {
+                        if (from != null &&
+                            until != null &&
+                            until!.isBefore(from!)) {
+                          setSheet(() => error =
+                              'Available until must be on or after available from.');
+                          return;
+                        }
+                        Navigator.of(ctx).pop((stock, from, until));
+                      },
                       style: ElevatedButton.styleFrom(
                           minimumSize: const Size.fromHeight(52)),
-                      child: const Text('Save stock'),
+                      child: const Text('Save'),
                     ),
                   ),
                 ],
@@ -329,20 +438,24 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
         },
       ),
     );
-    if (saved == null || saved == product.stockQuantity || !mounted) return;
+    if (saved == null || !mounted) return;
+    final (newStock, newFrom, newUntil) = saved;
+    if (newStock == product.stockQuantity &&
+        newFrom == product.availableFrom &&
+        newUntil == product.availableUntil) {
+      return;
+    }
     try {
-      // The availability dates are sent back unchanged so they are kept.
       await ApiService.updateProduct(
         id: product.id,
-        stockQuantity: saved,
-        availableFrom: product.availableFrom,
-        availableUntil: product.availableUntil,
+        stockQuantity: newStock,
+        availableFrom: newFrom,
+        availableUntil: newUntil,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         backgroundColor: TamuColors.primary,
-        content: Text(
-            'Stock updated: ${formatUnitQuantity(saved, product.unit)}'),
+        content: Text('${product.name} updated'),
       ));
       setState(() => _productsFuture = ApiService.fetchMyProducts());
     } catch (e) {
@@ -425,7 +538,7 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
                       ? 'Sold out'
                       : 'Active'),
               IconButton(
-                tooltip: tr('Update stock'),
+                tooltip: tr('Stock and dates'),
                 onPressed: () => _updateStock(product),
                 icon: const Icon(Icons.exposure, color: TamuColors.primary),
               ),
@@ -437,7 +550,7 @@ class _FarmerListingsScreenState extends State<FarmerListingsScreen> {
                   if (value == 'delete') _delete(product);
                 },
                 itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'stock', child: Text('Update stock')),
+                  PopupMenuItem(value: 'stock', child: Text('Stock and dates')),
                   PopupMenuItem(value: 'edit', child: Text('Edit listing')),
                   PopupMenuItem(value: 'delete', child: Text('Delete listing')),
                 ],
